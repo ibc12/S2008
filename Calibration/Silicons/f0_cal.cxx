@@ -41,7 +41,7 @@ std::vector<TH1D*> ReadData(const std::string& file, const std::string& dir, con
         auto name {str.substr(0, idx)};
         if(!(name == label))
             continue;
-        ret.push_back((TH1D*)lowdir->Get<TH1D>(key->GetName()));
+        ret.push_back((TH1D*)lowdir->Get<TH1I>(key->GetName()));
     }
     return ret;
 }
@@ -69,7 +69,7 @@ void f0_cal()
     std::string which {"f0"};
     std::string label {"F0"};
     // Read data
-    auto hs {ReadData("./Inputs/Si_cal_histos_run0130.root", "F0", label)};
+    auto hs {ReadData("./Inputs/F0_L0_R0_run0004.root", "F0", label)};
     // Pick only necessary
     int isil {};
     std::vector<int> adcChannels {};
@@ -91,7 +91,7 @@ void f0_cal()
     // source.Print();
 
     // Correct by energy losses in Al dead layer
-    ActPhysics::SRIM srim {"al", "./Inputs/4He_silicon.txt"};
+    ActPhysics::SRIM srim {"al", "../SRIM/4He_silicon.txt"};
     CorrectSource(&source, &srim, "al", 0.5e-3); // 0.5 um to mm
     // source.Print();
 
@@ -110,7 +110,7 @@ void f0_cal()
     auto* gr {new TGraphErrors};
     gr->SetNameTitle("g", "Resolution;;#sigma ^{241}Am [keV]");
     // Save
-    std::ofstream streamer {"./Outputs/post_experiment_cals/s2384_" + which + "_last.dat"};
+    std::ofstream streamer {"./Outputs/s2008_" + which + ".dat"};
     streamer << std::fixed << std::setprecision(8);
     std::vector<std::shared_ptr<TH1D>> hfs;
     for(int s = 0; s < hsrebin.size(); s++)
@@ -125,7 +125,7 @@ void f0_cal()
         runners.emplace_back(&source, hsrebin[s], hs[s], false);
         auto& run {runners.back()};
         run.SetGaussPreWidth(60);
-        run.SetRange(1200, 1500);
+        run.SetRange(2300, 3500);
         run.DisableXErrors();
         // if(s == 11)
         //     run.SetMaxSigma(0.1);
