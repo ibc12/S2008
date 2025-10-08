@@ -3,3 +3,5 @@
 *.root
 
 configs/data.conf
+
+.clang-format
