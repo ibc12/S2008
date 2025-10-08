@@ -11,7 +11,6 @@
 #include "TROOT.h"
 
 #include <atomic>
-#include <stdexcept>
 #include <utility>
 
 void Pipe0_Beam(const std::string& beam)

@@ -15,7 +15,6 @@
 #include "TString.h"
 
 #include <iostream>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -59,35 +58,36 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // Init particles
     ActPhysics::Particle pb {beam};
+    auto mbeam {pb.GetMass()};
     ActPhysics::Particle pt {target};
+    auto mtarget {pt.GetMass()};
     ActPhysics::Particle pl {light};
-
-    // // Filter on heavy particle hit in the telescope
-    auto def {dfVertex};
-    // auto def = dfVertex.Filter([](const ActRoot::MergerData &m)
-    //                            { if(!m.fHeavy.fLayers.empty() && m.fHeavy.fLayers.front() == "f2")
-    //                            {
-    //                                 if(m.fHeavy.fEs[0] > 9.5)
-    //                                 {
-    //                                     return true;
-    //                                 }
-    //                                 else
-    //                                     return false;
-    //                            }
-    //
-    //                            else
-    //                                 return false; }, {"MergerData"});
-    //
-    // Build beam energy
-    def = def.Define("EBeam", [&](const ActRoot::MergerData& d)
-                     { return srim->Slow(beam, 7.5 * pb.GetAMU(), d.fRP.X()); }, {"MergerData"});
-
-    ActPhysics::Kinematics kin {pb, pt, pl, 7.5 * pb.GetAMU()};
+    // Declare kinematics
+    double EBeamIni {4.6}; // AMeV at X = 0 of pad plane
+    // That is, including elosses in CFA, entrance window, etc
+    ActPhysics::Kinematics kin {pb, pt, pl, EBeamIni * pb.GetAMU()};
     // Vector of kinematics as one object is needed per
     // processing slot (since we are changing EBeam in each entry)
-    std::vector<ActPhysics::Kinematics> vkins {def.GetNSlots()};
+    std::vector<ActPhysics::Kinematics> vkins {df.GetNSlots()};
     for(auto& k : vkins)
         k = kin;
+
+    // Beam energy calculation and ECM
+    auto def {dfVertex
+                  .Define("EBeam", [&](const ActRoot::MergerData& d)
+                          { return srim->Slow(beam, EBeamIni * pb.GetAMU(), d.fRP.X()); }, {"MergerData"})
+                  .DefineSlot("Rec_EBeam", // assuming Ex = 0 using outgoing light particle kinematics
+                              [&](unsigned int slot, double EVertex, const ActRoot::MergerData& d)
+                              {
+                                  // no need for slots here but for the sake of consistency with next calculations...
+                                  return vkins[slot].ReconstructBeamEnergyFromLabKinematics(
+                                      EVertex, d.fThetaLight * TMath::DegToRad());
+                              },
+                              {"MergerData"})
+                  .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
+                  .Define("Rec_ECM", [&](double rec_EBeam) { return (mtarget / (mbeam + mtarget)) * rec_EBeam; },
+                          {"Rec_EBeam"})};
+
     def =
         def.DefineSlot("Ex",
                        [&](unsigned int slot, const ActRoot::MergerData& d, double EVertex, double EBeam)
@@ -95,25 +95,25 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                            vkins[slot].SetBeamEnergy(EBeam);
                            return vkins[slot].ReconstructExcitationEnergy(EVertex, (d.fThetaLight) * TMath::DegToRad());
                        },
-                       {"MergerData", "EVertex", "EBeam"});
-    def =
-        def.DefineSlot("ThetaCM",
-                       [&](unsigned int slot, const ActRoot::MergerData& d, double EVertex, double EBeam)
-                       {
-                           vkins[slot].SetBeamEnergy(EBeam);
-                           return vkins[slot].ReconstructTheta3CMFromLab(EVertex, (d.fThetaLight) * TMath::DegToRad()) *
-                                  TMath::RadToDeg();
-                       },
-                       {"MergerData", "EVertex", "EBeam"});
+                       {"MergerData", "EVertex", "EBeam"})
+            .DefineSlot("ThetaCM",
+                        [&](unsigned int slot, const ActRoot::MergerData& d, double EVertex, double EBeam)
+                        {
+                            vkins[slot].SetBeamEnergy(EBeam);
+                            return vkins[slot].ReconstructTheta3CMFromLab(EVertex,
+                                                                          (d.fThetaLight) * TMath::DegToRad()) *
+                                   TMath::RadToDeg();
+                        },
+                        {"MergerData", "EVertex", "EBeam"});
+
+    // Define range of heavy particle
+    def = def.Define("RangeHeavy", [&](ActRoot::MergerData& d) { return d.fHeavy.fTL; }, {"MergerData"});
 
 
-    // Book new histograms
+    // Kinematics and Ex
     auto hKin {def.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
-
     auto hKinCM {def.Histo2D(HistConfig::KinCM, "ThetaCM", "EVertex")};
-
     auto hEBeam {def.Histo1D("EBeam")};
-
     auto hExSil {def.Filter([](ActRoot::MergerData& m) { return m.fLight.IsFilled() == true; }, {"MergerData"})
                      .Histo1D(HistConfig::Ex, "Ex")};
     hExSil->SetTitle("Ex with silicons");
@@ -121,14 +121,9 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                     .Histo1D(HistConfig::Ex, "Ex")};
     hExL1->SetTitle("Ex with L1");
 
-    auto hTheta {def.Histo1D("fThetaLight")};
-
     auto hThetaBeam {def.Histo2D(HistConfig::ThetaBeam, "fRP.fCoordinates.fX", "fThetaBeam")};
-
     auto hRP {def.Histo2D(HistConfig::RP, "fRP.fCoordinates.fX", "fRP.fCoordinates.fY")};
-
     auto hRPx {def.Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
-
     auto hThetaCMLab {def.Histo2D(HistConfig::ThetaCMLab, "fThetaLight", "ThetaCM")};
 
     // Ex dependences
@@ -139,29 +134,30 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     // Heavy histograms
     auto hThetaHLLab {def.Histo2D(HistConfig::ChangeTitle(HistConfig::ThetaHeavyLight, "Lab correlations"),
                                   "fThetaLight", "fThetaHeavy")};
+
+    // CM things
+    auto hECM {def.Histo1D(HistConfig::ECM, "ECM")};
+    auto hRecECM {def.Histo1D(HistConfig::ECM, "Rec_CM")};
+    auto hECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
+    auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
+    auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "EVertex", "RangeHeavy")};
+
     // Save!
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
     def.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
-    // Save Ex histos on file
-    auto file {std::make_shared<TFile>(outfile.Data(), "update")};
-    hExSil->Write("hExSil");
-    hExL1->Write("hExL1");
-    file->Close();
 
 
     auto* c22 {new TCanvas("c22", "Pipe2 canvas 2")};
-    c22->DivideSquare(6);
+    c22->DivideSquare(4);
     c22->cd(1);
-    hTheta->DrawClone();
+    hRP->DrawClone();
     c22->cd(2);
-    hThetaBeam->DrawClone("colz");
+    hRPx->DrawClone();
     c22->cd(3);
-    hRP->DrawClone("colz");
+    hThetaBeam->DrawClone("colz");
     c22->cd(4);
     hEBeam->DrawClone();
-    c22->cd(5);
-    hRPx->DrawClone();
 
     auto* c21 {new TCanvas("c21", "Pipe2 canvas 1")};
     c21->DivideSquare(6);
@@ -188,5 +184,18 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     c23->cd(2);
     hThetaCMLab->DrawClone("colz");
     c23->cd(3);
+
+    auto* c24 {new TCanvas {"c24", "Pipe2 canvas 4"}};
+    c24->DivideSquare(6);
+    c24->cd(1);
+    hECM->DrawClone();
+    c24->cd(2);
+    hRecECM->DrawClone();
+    c24->cd(3);
+    hECMRPx->DrawClone("colz");
+    c24->cd(4);
+    hRecECMRPx->DrawClone("colz");
+    c24->cd(5);
+    hEpRMg->DrawClone("colz");
 }
 #endif

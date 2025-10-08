@@ -60,6 +60,12 @@ const TH2DModel ThetaCMLab {
 const TH2DModel RPxThetaCM {
     "hRPxThetaCM", "RP.X vs #theta_{CM} correlations;RP.X [mm];#theta_{CM} [#circ]", 200, 0, 300, 100, 0, 60};
 
+const TH2DModel RPxECM {"hRPxECM", "ECM vs RP.X;RP.X [mm];E_{CM} [MeV]", 200, 0, 300, 150, 0, 60};
+
+const TH1DModel ECM {"hECM", "E_{CM};E_{CM} [MeV];Counts / 300 keV", 200, 0, 60};
+
+const TH2DModel EpRMg {"hEpRMg", "Ep vs R Mg; Range ^{20}Mg [mm];E_{light} [MeV]", 200, 0, 300, 150, 0, 30};
+
 template <typename T>
 T ChangeTitle(T model, const TString& title, const TString& label = "");
 } // namespace HistConfig
