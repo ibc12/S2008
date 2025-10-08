@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <stdexcept>
+#include <utility>
 
 void Pipe0_Beam(const std::string& beam)
 {
@@ -27,45 +28,40 @@ void Pipe0_Beam(const std::string& beam)
     ROOT::RDataFrame df {*chain};
 
     // Get GATCONF values
-    auto def {df.Define("GATCONF", [](ActRoot::ModularData& mod) { return static_cast<int>(mod.fLeaves["GATCONF"]); },
-                        {"ModularData"})};
+    auto defGat {df.Define("GATCONF", [](ActRoot::ModularData& mod)
+                           { return static_cast<int>(mod.fLeaves["GATCONF"]); }, {"ModularData"})};
 
     // Get plots for DE/E for beam, first 10 pads, until x = 10.
-    auto df1 {def.Define("DE",
-                         [](ActRoot::TPCData& d, ActRoot::MergerData& m)
-                         {
-                             int beamIdx {m.fBeamIdx};
-                             auto beamCluster {d.fClusters[beamIdx]};
-                             auto voxels {beamCluster.GetRefToVoxels()};
-                             double DE {0};
-                             for(auto& v : voxels)
-                             {
-                                 if(v.GetPosition().X() < 10)
-                                     DE += v.GetCharge();
-                             }
-                             return DE;
-                         },
-                         {"TPCData", "MergerData"})
-                  .Define("E",
-                          [](ActRoot::TPCData& d, ActRoot::MergerData& m)
-                          {
-                              int beamIdx {m.fBeamIdx};
-                              auto beamCluster {d.fClusters[beamIdx]};
-                              auto voxels {beamCluster.GetRefToVoxels()};
-                              double E {0};
-                              for(auto& v : voxels)
-                                  E += v.GetCharge();
-                              return E;
-                          },
-                          {"TPCData", "MergerData"})};
+    auto defBeam {defGat.Filter("fBeamIdx != -1")
+                      .Define("Pair",
+                              [](ActRoot::TPCData& d, ActRoot::MergerData& m)
+                              {
+                                  int beamIdx {m.fBeamIdx};
+                                  auto beamCluster {d.fClusters[beamIdx]};
+                                  auto voxels {beamCluster.GetRefToVoxels()};
+                                  double dE {0}; // DeltaE in first 10 pads
+                                  double E {};   // Total energy
+                                  for(auto& v : voxels)
+                                  {
+                                      auto q {v.GetCharge()};
+                                      if(v.GetPosition().X() < 10)
+                                          dE += q;
+                                      E += q;
+                                  }
+                                  return std::make_pair(dE, E);
+                              },
+                              {"TPCData", "MergerData"})
+                      .Define("dE", "Pair.first")
+                      .Define("E", "Pair.second")};
 
     // Book histograms
-    auto hGATCONF {def.Histo1D("GATCONF")};
-    auto hDE_E {df1.Histo2D({"hDE_E", "DE vs E;E;DE", 100, 0, 1e5, 100, 0, 1e5}, "E", "DE")};
+    auto hGATCONF {defGat.Histo1D("GATCONF")};
+    auto hdEE {
+        defBeam.Histo2D({"hdEE", "Beam ID;Q_{total} [au];Q_{10 pads} [au]", 300, 0, 1e5, 300, 0, 1e5}, "E", "dE")};
 
     // And cound CFA triggers
     std::atomic<unsigned long int> cfa {};
-    def.Foreach(
+    defGat.Foreach(
         [&](const int& gatconf)
         {
             if(gatconf == 64)
@@ -75,6 +71,10 @@ void Pipe0_Beam(const std::string& beam)
 
     // Draw
     auto* c0 {new TCanvas {"c00", "Pipe 0 canvas 0"}};
+    c0->DivideSquare(4);
+    c0->cd(1);
+    hdEE->DrawClone("colz");
+    c0->cd(2);
     hGATCONF->DrawClone();
 
     // Print report
