@@ -18,13 +18,7 @@
 
 void Pipe1_PID(const std::string& beam, const std::string& target, const std::string& light)
 {
-    std::string dataconf {};
-    if(beam == "11Li")
-        dataconf = "./../configs/data.conf";
-    else if(beam == "7Li")
-        dataconf = "./../configs/data_7Li.conf";
-    else
-        throw std::runtime_error("Beam cannot differ from 11Li or 7Li");
+    std::string dataconf {"./../configs/data.conf"};
 
     // Read data
     ActRoot::DataManager dataman {dataconf, ActRoot::ModeType::EMerge};
@@ -34,96 +28,7 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
 
     // RDataFrame
     ROOT::EnableImplicitMT();
-    ROOT::RDataFrame dforigin {*chain};
-
-    // Filter silicon pads
-    auto df = dforigin.Filter(
-        [](ActRoot::MergerData& m)
-        {
-            // Mask L0_9
-            if(m.fLight.fNs.size())
-                if((m.fLight.fLayers.front() == "l0") && (m.fLight.fNs.front() == 9))
-                    return false;
-            // Mask F0_2
-            if(m.fLight.fNs.size())
-                if((m.fLight.fLayers.front() == "f0") && (m.fLight.fNs.front() == 2))
-                    return false;
-            // Mask R0_3
-            if(m.fLight.fNs.size())
-                if((m.fLight.fLayers.front() == "r0") && (m.fLight.fNs.front() == 3))
-                    return false;
-            // Mask R0 sils depending on run number
-            if(m.fRun > 29 && m.fRun < 35)
-            {
-                if(m.fRun == 30 || m.fRun == 31 || m.fRun == 33)
-                {
-                    if(!m.fLight.fLayers.empty() && m.fLight.fLayers.front() == "r0")
-                    {
-                        if(!m.fLight.fNs.empty() && (m.fLight.fNs.front() == 3 || m.fLight.fNs.front() == 5))
-                        {
-                            return false;
-                        }
-                        else
-                            return true;
-                    }
-                    else
-                        return true;
-                }
-                if(m.fRun == 32)
-                {
-                    if(!m.fLight.fLayers.empty() && m.fLight.fLayers.front() == "r0")
-                    {
-                        return false;
-                    }
-                    else
-                        return true;
-                }
-                if(m.fRun == 34)
-                {
-                    if(!m.fLight.fLayers.empty() &&
-                       (m.fLight.fLayers.front() == "r0" || m.fLight.fLayers.front() == "l0"))
-                    {
-                        return false;
-                    }
-                    else
-                        return true;
-                }
-                else
-                    return true;
-            }
-            if(m.fRun > 35 && m.fRun < 45)
-            {
-                if(!m.fLight.fLayers.empty() && m.fLight.fLayers.front() == "f0")
-                    {
-                        if(!m.fLight.fNs.empty() && m.fLight.fNs.front() == 5)
-                        {
-                            return false;
-                        }
-                        else
-                            return true;
-                    }
-                    else
-                        return true;
-            }
-            if(m.fRun == 116 || m.fRun == 117)
-            {
-                if(!m.fLight.fLayers.empty() && m.fLight.fLayers.front() == "r0")
-                    {
-                        if(!m.fLight.fNs.empty() && m.fLight.fNs.front() == 2)
-                        {
-                            return false;
-                        }
-                        else
-                            return true;
-                    }
-                    else
-                        return true;
-            }
-            else
-                return true;
-        },
-        {"MergerData"});
-
+    ROOT::RDataFrame df {*chain};
 
     // LIGHT particle
     // Define lambda functions
@@ -137,14 +42,12 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
                         else
                             return false;
                     }};
-    // 3-> Heavy particle
-    auto lambdaHeavy {[](ActRoot::MergerData& m) { return m.fHeavy.GetNLayers() == 2; }};
     // 4-> L1
     auto lambdaIsL1 {[](ActRoot::MergerData& mer, ActRoot::ModularData& mod)
                      { return (mod.Get("GATCONF") == 8) && (mer.fLightIdx != -1); }};
 
     // Fill histograms
-    std::map<std::string, ROOT::TThreadedObject<TH2D>> hsgas, hstwo, hszero;
+    std::map<std::string, ROOT::TThreadedObject<TH2D>> hsgas, hstwo;
     // Histogram models
     auto hGasSil {new TH2D {"hGasSil", ";E_{Sil} [MeV];#Delta E_{gas} [arb. units]", 450, 0, 70, 600, 0, 3000}};
     auto hTwoSils {new TH2D {"hTwoSils", ";#DeltaE_{0} [MeV];#DeltaE_{1} [MeV]", 500, 0, 80, 400, 0, 30}};
@@ -155,11 +58,6 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     }
     hstwo.emplace("f0-f1", *hTwoSils);
     hstwo["f0-f1"]->SetTitle("f0-f1");
-    for(int s = 0; s < 4; s++)
-    {
-        hszero.emplace(std::to_string(s), *hTwoSils);
-        hszero[std::to_string(s)]->SetTitle(TString::Format("f2_%d vs f3;E_{f3} [MeV];#DeltaE_{f2} [MeV]", s));
-    }
     ROOT::TThreadedObject<TH2D> hl1 {"hl1", "L1 PID;Raw TL [au];Q_{total} [au]", 200, 0, 120, 2000, 0, 3e5};
     ROOT::TThreadedObject<TH2D> hl1Gated {"hl1", "L1 PID > 100#circ;Raw TL [au];Q_{total} [au]", 200, 0, 120, 2000, 0,
                                           3e5};
@@ -193,13 +91,6 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
             {
                 hstwo["f0-f1"]->Fill(m.fLight.fEs[0], m.fLight.fEs[1]);
             }
-            // Heavy
-            if(lambdaHeavy(m))
-            {
-                auto n {std::to_string(m.fHeavy.fNs[0])};
-                if(hszero.count(n))
-                    hszero[n]->Fill(m.fHeavy.fEs[1], m.fHeavy.fEs[0]);
-            }
         },
         {"MergerData", "ModularData"});
 
@@ -211,19 +102,6 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     cuts.ReadCut("f0", TString::Format("./Cuts/pid_%s_f0_%s.root", light.c_str(), beam.c_str()).Data());
     cuts.ReadCut("l1", TString::Format("./Cuts/pid_%s_l1_%s.root", light.c_str(), beam.c_str()).Data());
     
-    // Read indivitual cuts for heavy particle --- NOW IN PIPE3
-    // if(beam == "11Li" && light == "p")
-    // {
-    //     for(const auto& heavy : {"11Li", "9Li"}) // these two particles are bound to (d,p) reaction
-    //     {
-    //         for(int s = 0; s < 4; s++) // one cut per f2 quad pad
-    //         {
-    //             cuts.ReadCut(TString::Format("%s_f2_%d_f3", heavy, s).Data(),
-    //                          TString::Format("./Cuts/pid_%s_f2_%d_%s.root", heavy, s, beam.c_str()).Data());
-    //         }
-    //     }
-    // }
-
     // Two sils PID
     // cuts.ReadCut("f0-f1", TString::Format("./Cuts/pid_%s_f0_f1_%s.root", light.c_str(), beam.c_str()).Data());
     // Get list of cuts
@@ -250,28 +128,6 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
                     {
                         // LIGHT particle
                         auto l {cuts.IsInside(layer, m.fLight.fEs[0], m.fLight.fQave)};
-                        // HEAVY for (d,p) NOT USED, now in Pipe3
-                        // bool h {true};
-                        // if(lambdaHeavy(m) && light == "p")
-                        // {
-                        //     auto n {m.fHeavy.fNs[0]};
-                        //     std::set<bool> isInHeavyCuts;
-                        //     for(const auto& particle : {"11Li", "9Li"})
-                        //     {
-                        //         std::string key {TString::Format("%s_f2_%d_f3", particle, n).Data()};
-                        //         if(std::find(listOfCuts.begin(), listOfCuts.end(), key) != listOfCuts.end())
-                        //             isInHeavyCuts.insert(cuts.IsInside(key, m.fHeavy.fEs[1], m.fHeavy.fEs[0]));
-                        //     }
-                        //     if(isInHeavyCuts.size())
-                        //     {
-                        //         if(isInHeavyCuts.find(true) != isInHeavyCuts.end())
-                        //         {
-                        //             h = true;
-                        //         }
-                        //         else
-                        //             h = false;
-                        //     }
-                        // }
                         return l;
                     }
                     else
@@ -312,61 +168,8 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     c0->cd(6);
     hl1theta.Merge()->DrawClone("colz");
 
-    auto* c1 {new TCanvas {"c11", "Pipe1 PID canvas 1"}};
-    c1->DivideSquare(hszero.size());
-    p = 1;
-    for(auto& [s, h] : hszero)
-    {
-        c1->cd(p);
-        h.Merge()->DrawClone("colz");
-        for(const auto& particle : {"11Li", "9Li"})
-        {
-            auto key {TString::Format("%s_f2_%s_f3", particle, s.c_str())};
-            cuts.DrawCut(key.Data());
-        }
-        p++;
-    }
     auto c1All {new TCanvas {"c1All", "Pipe1 PID canvas 1 all"}};
     c1All->cd();
-
-    // Obtener el merge del slot 0 como unique_ptr
-    auto h0 = hszero["0"].Merge();
-    auto h1 = hszero["1"].Merge();
-    auto h2 = hszero["2"].Merge();
-    auto h3 = hszero["3"].Merge();
-
-    // Crear histograma combinado como copia del slot 0
-    auto* hsum = (TH2D*)h0->Clone("hsum");
-    hsum->Reset(); // vaciarlo antes de sumar
-
-    // Sumar los histogramas 0 y 2
-    hsum->Add(h0.get());
-    hsum->Add(h1.get());
-    hsum->Add(h2.get());
-    hsum->Add(h3.get());
-
-    // Dibujar el histograma combinado
-    hsum->Draw("colz");
-    // auto c1All {new TCanvas {"c1All", "Pipe1 PID canvas 1 all"}};
-    // c1All->cd();
-    // p = 0;
-    // for(auto& [s, h] : hszero)
-    // {
-    //     if(p == 0)
-    //         h.Merge()->DrawClone("colz");
-    //     else if(p == 3)
-    //         continue;
-    //     else if(p == 1)
-    //         continue;
-    //     else if(p == 2)
-    //         h.Merge()->DrawClone("SAME");
-    //     for(const auto& particle : {"11Li", "9Li"})
-    //     {
-    //         auto key {TString::Format("%s_f2_%s_f3", particle, s.c_str())};
-    //         cuts.DrawCut(key.Data());
-    //     }
-    //     p++;
-    // }
 
     auto* c2 {new TCanvas {"c12", "Pipe1 PID canvas 2"}};
     c2->DivideSquare(4);
@@ -376,7 +179,7 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     hl1theta.GetAtSlot(0)->DrawClone("colz");
     c2->cd(3);
     hl1thetaCorr.Merge()->DrawClone("colz");
-    auto* gtheo {ActPhysics::Kinematics(TString::Format("%s(d,p)@82.5", beam.c_str()).Data()).GetTheta3vs4Line()};
+    auto* gtheo {ActPhysics::Kinematics(TString::Format("%s(p,p)@110", beam.c_str()).Data()).GetTheta3vs4Line()};
     gtheo->SetLineColor(46);
     gtheo->Draw("l");
     c2->cd(4);
