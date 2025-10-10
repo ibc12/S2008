@@ -45,9 +45,8 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     if(beam == "20Ne")
         pressure = 950;
     srim->ReadTable(light,
-                    TString::Format("../Calibrations/SRIM/%s_%dmbar_CF4_95-5.txt", srimName.c_str(), pressure).Data());
-    srim->ReadTable(beam,
-                    TString::Format("../Calibrations/SRIM/%s_%dmbar_CF4_95-5.txt", beam.c_str(), pressure).Data());
+                    TString::Format("../Calibrations/SRIM/%s_%dmbar_95-5.txt", srimName.c_str(), pressure).Data());
+    srim->ReadTable(beam, TString::Format("../Calibrations/SRIM/%s_%dmbar_95-5.txt", beam.c_str(), pressure).Data());
     // Build energy at vertex
     auto dfVertex = df.Define("EVertex",
                               [&](const ActRoot::MergerData& d)
@@ -88,10 +87,11 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                                   return vkins[slot].ReconstructBeamEnergyFromLabKinematics(
                                       EVertex, d.fThetaLight * TMath::DegToRad());
                               },
-                              {"MergerData"})
+                              {"EVertex", "MergerData"})
                   .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
                   .Define("Rec_ECM", [&](double rec_EBeam) { return (mtarget / (mbeam + mtarget)) * rec_EBeam; },
-                          {"Rec_EBeam"})};
+                          {"Rec_EBeam"})
+    };
 
     def =
         def.DefineSlot("Ex",
@@ -142,7 +142,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // CM things
     auto hECM {def.Histo1D(HistConfig::ECM, "ECM")};
-    auto hRecECM {def.Histo1D(HistConfig::ECM, "Rec_CM")};
+    auto hRecECM {def.Histo1D(HistConfig::ECM, "Rec_ECM")};
     auto hECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
     auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
     auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "EVertex", "RangeHeavy")};
