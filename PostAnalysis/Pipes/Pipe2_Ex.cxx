@@ -41,8 +41,13 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
         srimName = "3He";
     else if(light == "4He")
         srimName = "4He";
-    srim->ReadTable(light, TString::Format("../Calibrations/SRIM/%s_900mb_CF4_95-5.txt", srimName.c_str()).Data());
-    srim->ReadTable(beam, TString::Format("../Calibrations/SRIM/%s_900mb_CF4_95-5.txt", beam.c_str()).Data());
+    int pressure {800}; // 20Me beam
+    if(beam == "20Ne")
+        pressure = 950;
+    srim->ReadTable(light,
+                    TString::Format("../Calibrations/SRIM/%s_%dmbar_CF4_95-5.txt", srimName.c_str(), pressure).Data());
+    srim->ReadTable(beam,
+                    TString::Format("../Calibrations/SRIM/%s_%dmbar_CF4_95-5.txt", beam.c_str(), pressure).Data());
     // Build energy at vertex
     auto dfVertex = df.Define("EVertex",
                               [&](const ActRoot::MergerData& d)

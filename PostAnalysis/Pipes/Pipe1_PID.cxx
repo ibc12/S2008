@@ -11,7 +11,6 @@
 #include "TCanvas.h"
 #include "TH2.h"
 #include "TString.h"
-#include "TH2D.h"
 
 #include <map>
 #include <string>
@@ -101,7 +100,7 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     cuts.ReadCut("r0", TString::Format("./Cuts/pid_%s_r0_%s.root", light.c_str(), beam.c_str()).Data());
     cuts.ReadCut("f0", TString::Format("./Cuts/pid_%s_f0_%s.root", light.c_str(), beam.c_str()).Data());
     cuts.ReadCut("l1", TString::Format("./Cuts/pid_%s_l1_%s.root", light.c_str(), beam.c_str()).Data());
-    
+
     // Two sils PID
     // cuts.ReadCut("f0-f1", TString::Format("./Cuts/pid_%s_f0_f1_%s.root", light.c_str(), beam.c_str()).Data());
     // Get list of cuts
@@ -167,9 +166,6 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     cuts.DrawCut("l1");
     c0->cd(6);
     hl1theta.Merge()->DrawClone("colz");
-
-    auto c1All {new TCanvas {"c1All", "Pipe1 PID canvas 1 all"}};
-    c1All->cd();
 
     auto* c2 {new TCanvas {"c12", "Pipe1 PID canvas 2"}};
     c2->DivideSquare(4);
