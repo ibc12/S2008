@@ -10,11 +10,11 @@
 void fitELossBeam()
 {
     // Get histos from files
-    TFile* file = TFile::Open("./Outputs/DE_7Li_10pads.root");
+    TFile* file = TFile::Open("./Outputs/DE_20Ne_10pads.root");
     TH1D* h = file->Get<TH1D>("hDE_20Ne");
 
     auto srim {new ActPhysics::SRIM};
-    srim->ReadTable("20Ne", "../../Calibrations/SRIM/20Ne_800mb_isobutane_95-5.txt");
+    srim->ReadTable("20Ne", "../../Calibrations/SRIM/20Ne_950mbar_95-5.txt.txt");
     double E {5.5 * 20};
     auto eLoss {E - srim->Slow("20Ne", E, 20)};
 
