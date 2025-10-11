@@ -31,7 +31,7 @@ void gateOnGatconf()
             if(sil.fSiE.count("f0"))
             {
                 if(sil.fSiE["f0"].size() == 1)
-                    if(sil.fSiE["f0"].front() >= 12)
+                    if(sil.fSiE["f0"].front() >= 9)
                         // if(mer.fSP.X() > 0 && mer.fSP.X() < 45)
                         return true;
             }
