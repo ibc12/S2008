@@ -1,4 +1,6 @@
+#include "ActCalibrationManager.h"
 #include "ActDataManager.h"
+#include "ActModularData.h"
 #include "ActSilData.h"
 #include "ActTypes.h"
 
@@ -27,7 +29,7 @@ void rawSils()
         for(int s = 0; s < nsil; s++)
         {
             hs[layer].push_back(new TH1D {TString::Format("h%s%d", layer, s),
-                                          TString::Format("Energies %s_%d;E [MeV];Counts", layer, s), 300, 0, 80});
+                                          TString::Format("Energies %s_%d;E [MeV];Counts", layer, s), 300, 0, 60});
         }
     }
     // Fill!

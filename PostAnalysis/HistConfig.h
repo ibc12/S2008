@@ -44,7 +44,7 @@ const TH2DModel ThetaBeam {
 const TH2DModel ExZ {"hExZ", "E_{x} dependence on SP.Z();SP.Z() [mm];E_{x} [MeV]", 200, -10, 300, 200, -10, 20};
 
 const TH2DModel ExThetaCM {
-    "hExThetaCM", "E_{x} vs #theta_{CM};#theta_{CM} [#circ];E_{x} [MeV]", 400, 0, 60, 200, -10, 20};
+    "hExThetaCM", "E_{x} vs #theta_{CM};#theta_{CM} [#circ];E_{x} [MeV]", 400, 0, 160, 200, -10, 20};
 
 const TH2DModel ExThetaLab {
     "hExThetaLab", "E_{x} vs #theta_{Lab};#theta_{Lab} [#circ];E_{x} [MeV]", 400, 0, 60, 200, -10, 20};
@@ -62,9 +62,14 @@ const TH2DModel RPxThetaCM {
 
 const TH2DModel RPxECM {"hRPxECM", "ECM vs RP.X;RP.X [mm];E_{CM} [MeV]", 200, 0, 300, 150, 0, 60};
 
-const TH1DModel ECM {"hECM", "E_{CM};E_{CM} [MeV];Counts / 300 keV", 200, 0, 60};
+const TH1DModel ECM {"hECM", "E_{CM};E_{CM} [MeV];Counts / 75 keV", 200, 0, 15};
 
-const TH2DModel EpRMg {"hEpRMg", "Ep vs R Mg; Range ^{20}Mg [mm];E_{light} [MeV]", 200, 0, 300, 150, 0, 30};
+const TH2DModel ThetaCMECM {
+    "hThetaCMECM", "#theta_{CM} vs E_{CM};#theta_{CM} [#circ];E_{CM} [MeV]", 400, 0, 180, 300, 0, 15};
+
+const TH2DModel EpRMg {"hEpRMg", "Ep vs R Mg; Range ^{20}Mg [mm];E_{light} [MeV]", 200, 0, 300, 150, 0, 60};
+
+const TH1DModel EBeam {"hEBeam", "Beam energy;E_{Beam} [MeV]", 300, 0, 80};
 
 template <typename T>
 T ChangeTitle(T model, const TString& title, const TString& label = "");

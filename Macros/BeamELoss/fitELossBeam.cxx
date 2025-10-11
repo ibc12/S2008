@@ -14,7 +14,7 @@ void fitELossBeam()
     TH1D* h = file->Get<TH1D>("hDE_20Ne");
 
     auto srim {new ActPhysics::SRIM};
-    srim->ReadTable("20Ne", "../../Calibrations/SRIM/20Ne_950mbar_95-5.txt.txt");
+    srim->ReadTable("20Ne", "../../Calibrations/SRIM/20Ne_950mbar_95-5.txt");
     double E {5.5 * 20};
     auto eLoss {E - srim->Slow("20Ne", E, 20)};
 

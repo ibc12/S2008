@@ -5,3 +5,18 @@
 configs/data.conf
 
 .clang-format
+
+# CMake things
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+/build/
+/out/
+/bin/
+/lib/
+
+*.so
+*.so.*
+*.dylib
