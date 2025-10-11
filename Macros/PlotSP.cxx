@@ -1,10 +1,10 @@
-#include "ActCutsManager.h"
 #include "ActDataManager.h"
 #include "ActMergerData.h"
 #include "ActTypes.h"
+#include "ActModularData.h"
 
+#include "ROOT/RDF/RInterface.hxx"
 #include "ROOT/RDataFrame.hxx"
-#include "ROOT/RVec.hxx"
 #include "ROOT/TThreadedObject.hxx"
 
 #include "TCanvas.h"
@@ -12,94 +12,117 @@
 #include "TROOT.h"
 #include "TString.h"
 
-#include "Math/Point3D.h"
-#include "Math/Point3Dfwd.h"
-
-#include <fstream>
-#include <vector>
+#include <map>
+#include <string>
 
 void PlotSP()
 {
+    // Read the data using the data.conf file
+    ActRoot::DataManager dataman{"../configs/data.conf", ActRoot::ModeType::EMerge};
+    auto chain{dataman.GetChain()}; // Get all Merge files for Runs in a single TChain
+    // Add friends if necessary
+    auto friend1{dataman.GetChain(ActRoot::ModeType::EReadSilMod)};
+    chain->AddFriend(friend1.get());
+
+    // Build the RDataFrame
     ROOT::EnableImplicitMT();
+    ROOT::RDataFrame df{*chain};
 
-    ActRoot::DataManager data {"../configs/data.conf", ActRoot::ModeType::EMerge};
-    auto chain {data.GetJoinedData()};
-    ROOT::RDataFrame d {*chain};
+    // Gate on events (L1 trigger has no good z relative point)
+    auto gated{df.Filter([](ActRoot::ModularData &d)
+                         { return (d.Get("GATCONF") == 1 || d.Get("GATCONF") == 2); }, {"ModularData"})
+                   .Filter(
+                       [](ActRoot::MergerData &m)
+                       {
+                           if (!m.fLight.HasSP())
+                               return false;
+                           return true;
+                       },
+                       {"MergerData"})};
 
-    // Gate on events stopped in first layer
-    auto df {d.Filter("fSilLayers.size() == 1")};
-
-    // Gate on sides
-    auto f0 {df.Filter("fSilLayers.front() == \"f0\"")};
-    auto l0 {df.Filter("fSilLayers.front() == \"l0\"")};
-
-
-    // Book histograms
-    auto hF0 {
-        f0.Histo2D({"hF0", "F0 SPs", 200, -20, 300, 200, -20, 300}, "fSP.fCoordinates.fY", "fSP.fCoordinates.fZ")};
-    auto hL0 {
-        l0.Histo2D({"hL0", "L0 SPs", 200, -20, 276, 200, -20, 276}, "fSP.fCoordinates.fX", "fSP.fCoordinates.fZ")};
-    // FOr computing ZOffset
-    auto hZOff {
-        f0.Histo1D({"hZOff", "ZOffset", hF0->GetNbinsY(), hF0->GetYaxis()->GetXmin(), hF0->GetYaxis()->GetXmax()},
-                   "fSP.fCoordinates.fZ")};
-
-    // // Write
-    // std::ofstream streamer {"./Debug/sp_scat.dat"};
-    // ActRoot::CutsManager<int> cut;
-    // cut.ReadCut(0, "./Cuts/debug_scat.root");
-    // f0.Foreach(
-    //     [&](const ActRoot::MergerData& d)
-    //     {
-    //         if(cut.IsInside(0, d.fSP.Y(), d.fSP.Z()))
-    //             streamer << d.fRun << " " << d.fEntry << '\n';
-    //     },
-    //     {"MergerData"});
-    // streamer.close();
-
-    int nsils {11};
-    std::map<int, ROOT::TThreadedObject<TH2D>> hs;
-    auto* hmodel {new TH2D {"hmodel", "Model", 200, -20, 300, 200, -20, 300}};
-    for(int s = 0; s < nsils; s++)
+    // Fill histograms
+    int nsils{12};
+    std::map<std::string, std::map<int, ROOT::TThreadedObject<TH2D>>> hs;
+    // Histogram model
+    auto *h2d{new TH2D{"h2d", "SP;X or Y [pad];Z [btb]", 300, 0, 300, 500, 0, 500}};
+    for (const auto &layer : {"f0", "l0", "r0"})
     {
-        hs.emplace(s, *hmodel);
-        hs[s].Get()->SetNameTitle(TString::Format("h%d", s), TString::Format("SP for %d;Y [mm];Z [mm]", s));
+        for (int s = 0; s < nsils; s++)
+        {
+            hs[layer].emplace(s, *h2d);
+            hs[layer][s]->SetTitle(TString::Format("Layer %s", layer));
+        }
     }
-    // Fill them
-    df.Foreach(
-        [&](const ROOT::VecOps::RVec<std::string>& silL, const ROOT::RVecF& silN, const ROOT::Math::XYZPointF& sp)
+    gated.Foreach(
+        [&](ActRoot::MergerData &m)
         {
-            if(silL.front() == "f0")
-                hs[silN.front()].Get()->Fill(sp.Y(), sp.Z());
-        },
-        {"fSilLayers", "fSilNs", "fSP"});
-
-
-    // plotting
-    auto* c1 {new TCanvas("c1", "Silicon points canvas")};
-    c1->DivideSquare(4);
-    c1->cd(1);
-    hF0->DrawClone("colz");
-    // cut.DrawAll();
-    c1->cd(2);
-    hL0->DrawClone("colz");
-    c1->cd(3);
-    hZOff->DrawClone();
-
-    std::vector<TCanvas*> cs(3);
-    int idx {0};
-    for(int c = 0; c < cs.size(); c++)
-    {
-        cs[c] = new TCanvas(TString::Format("cSP%d", c));
-        cs[c]->DivideSquare(4);
-        for(int p = 0; p < 4; p++)
-        {
-            if(idx < hs.size())
+            // No need to check for SP, it has already been done in Filter
+            auto layer{m.fLight.fLayers.front()}; // ensured to have at least size >= 1
+            auto n{m.fLight.fNs.front()};
+            auto sp{m.fLight.fSP};
+            if (hs.count(layer))
             {
-                cs[c]->cd(p + 1);
-                hs[idx].Merge()->DrawClone("colz");
+                if (hs[layer].count(n))
+                {
+                    if (layer == "f0")
+                        hs[layer][n].Get()->Fill(sp.Y(), sp.Z());
+                    else
+                        hs[layer][n].Get()->Fill(sp.X(), sp.Z());
+                }
             }
+        },
+        {"MergerData"});
+
+    // Save to file
+    for (auto &[layer, vec] : hs)
+    {
+        auto file{std::make_unique<TFile>(TString::Format("./Outputs/histos_sp_%s.root", layer.c_str()), "recreate")};
+        for (auto &[sil, h] : vec)
+        {
+            h.Merge();
+            auto proj{h.GetAtSlot(0)->ProjectionY(TString::Format("proj%s%d", layer.c_str(), sil))};
+            proj->Write();
+            delete proj;
+        }
+    }
+
+    // Draw
+    auto *c0{new TCanvas{"c0", "SP canvas"}};
+    c0->DivideSquare(4);
+    int p{1};
+    int canvasIdx{0};
+    for (auto &[layer, hsils] : hs)
+    {
+        // Crear un nuevo canvas para cada histograma
+        auto cname = Form("c%d", canvasIdx++);
+        auto c = new TCanvas{cname, Form("SP canvas %d", canvasIdx), 800, 600};
+        if (layer == "l0" || layer == "r0")
+            c->Divide(3, 4);
+        if (layer == "f0")
+            c->Divide(4, 3);
+        // c0->cd(p);
+        int idx{};
+        std::cout << hsils.size() << " histograms for layer " << layer << std::endl;
+        for (auto &[s, h] : hsils)
+        {
+            c->cd(idx + 1);
+            auto color{idx + 1};
+            if (color == 10) // 10 is white, as well as 0
+                color = 46;
+            auto opts{(idx == 0) ? "scat" : "scat same"};
+            // Merge histos from threads
+            //h.Merge(); // alerady merged before
+            // Set color
+            h.GetAtSlot(0)->SetMarkerColor(color);
+            // Set size
+            h.GetAtSlot(0)->SetMarkerSize(0.8);
+            h->SetMarkerStyle(20);
+            // Set title
+            h->SetTitle(TString::Format("Layer %s, S%d", layer.c_str(), s));
+            // Draw
+            h.GetAtSlot(0)->DrawClone("colz");
             idx++;
         }
+        p++;
     }
 }
