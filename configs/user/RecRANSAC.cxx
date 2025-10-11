@@ -1,14 +1,17 @@
-#include "UserAction.h"
+#include "RecRANSAC.h"
 
+#include "ActAFindRP.h"
 #include "ActCluster.h"
 #include "ActColors.h"
 #include "ActInputParser.h"
+#include "ActMultiAction.h"
 #include "ActRANSAC.h"
 #include "ActTPCData.h"
 
+#include <algorithm>
 #include <memory>
 
-void ActAlgorithm::UserAction::UserAction::ReadConfiguration(std::shared_ptr<ActRoot::InputBlock> block)
+void ActAlgorithm::RecRANSAC::ReadConfiguration(std::shared_ptr<ActRoot::InputBlock> block)
 {
     fIsEnabled = block->GetBool("IsEnabled");
     if(!fIsEnabled)
@@ -21,18 +24,30 @@ void ActAlgorithm::UserAction::UserAction::ReadConfiguration(std::shared_ptr<Act
     //     fCylinderR = block->GetDouble("CylinderR");
 }
 
-void ActAlgorithm::UserAction::Run()
+void ActAlgorithm::RecRANSAC::Run()
 {
     if(!fIsEnabled)
         return;
 
-    // Enable only if only one cluster
-    if(fTPCData->fClusters.size() > 1)
+    // Determine beam likes in event, calling DetermineBeamLikes from FindRP before
+    if(fMultiAction->HasAction("FindRP"))
+    {
+        auto findrp {std::dynamic_pointer_cast<ActAlgorithm::Actions::FindRP>(fMultiAction->GetAction("FindRP"))};
+        if(findrp)
+            findrp->ExecInnerAction("DetermineBeamLikes");
+    }
+
+    // Trigger only when all are beam-likes
+    auto trigger {std::all_of(fTPCData->fClusters.begin(), fTPCData->fClusters.end(),
+                              [](const ActRoot::Cluster& cl) { return cl.GetIsBeamLike(); })};
+    if(!trigger)
         return;
+    // if(fTPCData->fClusters.size() > 1)
+    //     return;
 
     const auto& noise {fTPCData->fRaw};
     int iter {120};
-    int minVoxels {7};
+    int minVoxels {5};
     double distThresh {2.};
     ActAlgorithm::RANSAC ransac {iter, minVoxels, distThresh};
     auto [clusters, back] {ransac.Run(noise)};
@@ -52,7 +67,7 @@ void ActAlgorithm::UserAction::Run()
     }
 }
 
-void ActAlgorithm::UserAction::Print() const
+void ActAlgorithm::RecRANSAC::Print() const
 {
     std::cout << BOLDCYAN << "····· " << GetActionID() << " ·····" << '\n';
     if(!fIsEnabled)
@@ -60,13 +75,11 @@ void ActAlgorithm::UserAction::Print() const
         std::cout << "······························" << RESET << '\n';
         return;
     }
-    std::cout << "  MaxAngle       : " << fMaxAngle << '\n';
-    std::cout << "  MinLength      : " << fMinLength << '\n';
-    std::cout << "  CylinderRadius : " << fCylinderR << RESET << '\n';
+    std::cout << "  No parameters yet" << RESET << '\n';
 }
 
 // Create symbol to load class from .so
-extern "C" ActAlgorithm::UserAction* CreateUserAction()
+extern "C" ActAlgorithm::RecRANSAC* CreateUserAction()
 {
-    return new ActAlgorithm::UserAction;
+    return new ActAlgorithm::RecRANSAC;
 }

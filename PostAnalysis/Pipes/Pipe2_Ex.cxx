@@ -16,6 +16,7 @@
 #include "TString.h"
 #include "TVirtualPad.h"
 
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -54,9 +55,9 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                               [&](const ActRoot::MergerData& d)
                               {
                                   double ret {};
-                                  if(d.fLight.IsFilled())
+                                  if(d.fLight.IsFilled() && std::isfinite(d.fLight.fTL))
                                       ret = srim->EvalInitialEnergy(light, d.fLight.fEs.front(), d.fLight.fTL);
-                                  else // L1 trigger
+                                  else if(d.fLight.IsL1()) // L1 trigger
                                       ret = srim->EvalEnergy(light, d.fLight.fTL);
                                   return ret;
                               },
