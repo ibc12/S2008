@@ -67,7 +67,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto mtarget {pt.GetMass()};
     ActPhysics::Particle pl {light};
     // Declare kinematics
-    double EBeamIni {4.6}; // AMeV at X = 0 of pad plane
+    double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
     // That is, including elosses in CFA, entrance window, etc
     ActPhysics::Kinematics kin {pb, pt, pl, EBeamIni * pb.GetAMU()};
     // Vector of kinematics as one object is needed per
@@ -90,8 +90,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                               {"EVertex", "MergerData"})
                   .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
                   .Define("Rec_ECM", [&](double rec_EBeam) { return (mtarget / (mbeam + mtarget)) * rec_EBeam; },
-                          {"Rec_EBeam"})
-    };
+                          {"Rec_EBeam"})};
 
     def =
         def.DefineSlot("Ex",
@@ -146,6 +145,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto hECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
     auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
     auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "EVertex", "RangeHeavy")};
+
 
     // Save!
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
