@@ -1,6 +1,7 @@
 #ifndef Pipe2_Ex_cxx
 #define Pipe2_Ex_cxx
 
+#include "ActCutsManager.h"
 #include "ActKinematics.h"
 #include "ActMergerData.h"
 #include "ActParticle.h"
@@ -17,6 +18,7 @@
 #include "TVirtualPad.h"
 
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -27,7 +29,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 {
     // Read data
     auto filename {TString::Format("./Outputs/tree_pid_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
-    ROOT::EnableImplicitMT();
+    // ROOT::EnableImplicitMT();
     ROOT::RDataFrame df {"PID_Tree", filename};
 
     // Init SRIM
@@ -50,6 +52,13 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     srim->ReadTable(light,
                     TString::Format("../Calibrations/SRIM/%s_%dmbar_95-5.txt", srimName.c_str(), pressure).Data());
     srim->ReadTable(beam, TString::Format("../Calibrations/SRIM/%s_%dmbar_95-5.txt", beam.c_str(), pressure).Data());
+
+
+    // Read cuts
+    ActRoot::CutsManager<std::string> cuts;
+    cuts.ReadCut("ep_range", "./Cuts/ep_range_p_20Mg.root");
+    cuts.ReadCut("debug", "./Cuts/debug_l1.root");
+
     // Build energy at vertex
     auto dfVertex = df.Define("EVertex",
                               [&](const ActRoot::MergerData& d)
@@ -126,6 +135,10 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
         nodel0.Filter([](ActRoot::MergerData& d) { return d.fLight.fLayers.front() == "f0"; }, {"MergerData"})};
     auto nodel1 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == true; }, {"MergerData"})};
 
+    // Filter in Ep vs Range
+    auto nodeEpRange {nodel0.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
+                                    {"RangeHeavy", "EVertex"})};
+
     // Kinematics and Ex
     auto hKin {def.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
     auto hKinCM {def.Histo2D(HistConfig::KinCM, "ThetaCM", "EVertex")};
@@ -187,16 +200,33 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECM2dLat->SetTitle("Side");
     auto hECM2dL1 {nodel1.Histo2D(HistConfig::ThetaCMECM, "ThetaCM", "ECM")};
     hECM2dL1->SetTitle("L1");
+    
+    auto hRPxELab {
+        nodel1.Filter("70 < fThetaLight && fThetaLight < 80")
+        .Histo2D({"hRPxELab", "#theta_{Lab} in [70, 80];RP.X [mm];E_{Vertex} [#circ]", 400, 0, 260, 300, 0, 30},
+                       "fRP.fCoordinates.fX", "EVertex")};
+
+    auto hRPxThetaLab {
+        nodel1.Histo2D({"hRPxThetaLab", "L1 exlusion zone;RP.X [mm];#theta_{Lab} [#circ]", 400, 0, 260, 300, 0, 90},
+                       "fRP.fCoordinates.fX", "fThetaLight")};
 
     auto hECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
     auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
     auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "RangeHeavy", "EVertex")};
 
+    auto hECMCut {nodeEpRange.Histo1D(HistConfig::ECM, "ECM")};
 
     // Save!
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
     def.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
+
+    // std::ofstream streamer {"./debug_l1.dat"};
+    // auto nodeStreamer {nodel1.Filter([&](double ECM, double thetaCM) { return cuts.IsInside("debug", thetaCM, ECM);
+    // },
+    //                                  {"ECM", "ThetaCM"})};
+    // nodeStreamer.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
+    // streamer.close();
 
 
     auto* c22 {new TCanvas("c22", "Pipe2 canvas 2")};
@@ -261,14 +291,17 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECML1->DrawClone("same");
     gPad->BuildLegend();
     c24->cd(2);
-    hECM2dFront->DrawClone("colz");
+    hRPxELab->DrawClone("colz");
+    // hECM2dFront->DrawClone("colz");
+    // hECM2dLat->DrawClone("colz same");
     c24->cd(3);
-    hECM2dLat->DrawClone("colz");
+    hRPxThetaLab->DrawClone("colz");
     c24->cd(4);
     hECM2dL1->DrawClone("colz");
     c24->cd(5);
     hEpRMg->DrawClone("colz");
     c24->cd(6);
-    hECMRPx->DrawClone("colz");
+    hECMCut->DrawClone("colz");
+    // hECMRPx->DrawClone("colz");
 }
 #endif
