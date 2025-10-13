@@ -27,10 +27,10 @@ const TH2DModel KinEl {"hKinEl", "Kinematics;#theta_{Lab} [#circ];E_{Vertex} [Me
 
 const TH2DModel KinSimu {"hKin", "Simulation kinematics;#theta_{Lab} [#circ];E_{Vertex} [MeV]", 600, 0, 90, 600, 0, 40};
 
-const TH2DModel KinCM {"hKinCM", "CM kinematics;#theta_{CM} [#circ];E_{Vertex} [MeV]", 400, 0, 60, 400, 0, 20};
+const TH2DModel KinCM {"hKinCM", "CM kinematics;#theta_{CM} [#circ];E_{Vertex} [MeV]", 400, 0, 180, 400, 0, 20};
 
 const TH1DModel Ex {
-    "hEx", TString::Format("Excitation energy;E_{x} [MeV];Counts / %.f keV", (35. - (-10.)) / 600 * 1e3), 600, -10, 35};
+    "hEx", TString::Format("Excitation energy;E_{x} [MeV];Counts / %.f keV", (10. - (-5.)) / 200 * 1e3), 200, -5, 10};
 
 const TH1DModel ThetaCM {"hThetaCM", "ThetaCM;#theta_{CM} [#circ]", 600, 0, 180};
 
@@ -41,15 +41,15 @@ const TH2DModel YPhiY {"hYPhiY", "Emittance along Y;Y [mm];#phi_{Y} [#circ]", 60
 const TH2DModel ThetaBeam {
     "hThetaBeam", "#theta_{Beam} against RP.X;RP.X() [mm];#theta_{Beam} [#circ]", 200, -5, 270, 200, -1, 10};
 
-const TH2DModel ExZ {"hExZ", "E_{x} dependence on SP.Z();SP.Z() [mm];E_{x} [MeV]", 200, -10, 300, 200, -10, 20};
+const TH2DModel ExZ {"hExZ", "E_{x} dependence on SP.Z();SP.Z() [mm];E_{x} [MeV]", 300, -10, 450, 200, -5, 10};
 
 const TH2DModel ExThetaCM {
-    "hExThetaCM", "E_{x} vs #theta_{CM};#theta_{CM} [#circ];E_{x} [MeV]", 400, 0, 160, 200, -10, 20};
+    "hExThetaCM", "E_{x} vs #theta_{CM};#theta_{CM} [#circ];E_{x} [MeV]", 400, 0, 180, 200, -10, 10};
 
 const TH2DModel ExThetaLab {
-    "hExThetaLab", "E_{x} vs #theta_{Lab};#theta_{Lab} [#circ];E_{x} [MeV]", 400, 0, 60, 200, -10, 20};
+    "hExThetaLab", "E_{x} vs #theta_{Lab};#theta_{Lab} [#circ];E_{x} [MeV]", 400, 0, 100, 200, -10, 10};
 
-const TH2DModel ExRPx {"hExRPX", "E_{x} vs RP.X;RP.X() [mm];E_{x} [MeV]", 200, -10, 300, 200, -10, 20};
+const TH2DModel ExRPx {"hExRPX", "E_{x} vs RP.X;RP.X() [mm];E_{x} [MeV]", 200, -10, 300, 200, -10, 10};
 
 const TH2DModel ThetaHeavyLight {
     "hThetaHL", "#theta heavy vs light;#theta_{Light} [#circ];#theta_{Heavy} [#circ]", 400, 0, 90, 400, 0, 15};
@@ -69,7 +69,7 @@ const TH2DModel ThetaCMECM {
 
 const TH2DModel EpRMg {"hEpRMg", "Ep vs R Mg; Range ^{20}Mg [mm];E_{light} [MeV]", 200, 0, 300, 300, 0, 60};
 
-const TH1DModel EBeam {"hEBeam", "Beam energy;E_{Beam} [MeV]", 300, 0, 80};
+const TH1DModel EBeam {"hEBeam", "Beam energy;E_{Beam} [MeV]", 180, 0, 90};
 
 template <typename T>
 T ChangeTitle(T model, const TString& title, const TString& label = "");

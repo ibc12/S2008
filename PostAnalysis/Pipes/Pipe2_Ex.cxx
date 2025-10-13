@@ -7,7 +7,9 @@
 #include "ActParticle.h"
 #include "ActSRIM.h"
 
+#include "ROOT/RDF/InterfaceUtils.hxx"
 #include "ROOT/RDataFrame.hxx"
+#include "ROOT/RResultPtr.hxx"
 #include "Rtypes.h"
 
 #include "TAttLine.h"
@@ -20,6 +22,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -29,7 +32,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 {
     // Read data
     auto filename {TString::Format("./Outputs/tree_pid_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
-    // ROOT::EnableImplicitMT();
+    ROOT::EnableImplicitMT();
     ROOT::RDataFrame df {"PID_Tree", filename};
 
     // Init SRIM
@@ -78,11 +81,24 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     ActPhysics::Particle pt {target};
     auto mtarget {pt.GetMass()};
     ActPhysics::Particle pl {light};
-    // Declare kinematics
+    // Beam energies
+    // First set of data, runs [31-40]
+    double EBeamFirst {4.24}; // MeV/u from SRIM interpolation of exp. 20Mg range
+    // 2nd set of data, runs [47, onwards] -> is the SAME
+    double EBeamSecond {4.24}; // MeV/u from SRIM
+    std::map<int, double> EBeams;
+    for(int run = 31; run <= 40; run++)
+        EBeams[run] = EBeamFirst;
+    for(int run = 47; run <= 60; run++)
+        EBeams[run] = EBeamSecond;
+    // Allegedly wrong LISE calculation below
     // double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
-    double EBeamIni {4.17}; // AMeV at X = 0. WARNING: SUSPICTION THIS IS NOT 20Mg
-    // That is, including elosses in CFA, entrance window, etc
-    ActPhysics::Kinematics kin {pb, pt, pl, EBeamIni * pb.GetAMU()};
+    // Energy of unidentified beam on Sunday 12
+    // double EBeamIni {4.17}; // AMeV at X = 0. WARNING: SUSPICTION THIS IS NOT 20Mg
+
+    // All the above beam energies include energy losses in CFA, window, etc...
+    // They're given at X = 0 of the pad plane
+    ActPhysics::Kinematics kin {pb, pt, pl, EBeamFirst * pb.GetAMU()};
     // Vector of kinematics as one object is needed per
     // processing slot (since we are changing EBeam in each entry)
     std::vector<ActPhysics::Kinematics> vkins {df.GetNSlots()};
@@ -91,8 +107,18 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // Beam energy calculation and ECM
     auto def {dfVertex
-                  .Define("EBeam", [&](const ActRoot::MergerData& d)
-                          { return srim->Slow(beam, EBeamIni * pb.GetAMU(), d.fRP.X()); }, {"MergerData"})
+                  .Define("EBeam",
+                          [&](const ActRoot::MergerData& d)
+                          {
+                              double EBeam {};
+                              if(EBeams.count(d.fRun))
+                                  EBeam = EBeams[d.fRun];
+                              else
+                                  throw std::runtime_error("Defining EBeam: no initial beam energy for run " +
+                                                           std::to_string(d.fRun));
+                              return srim->Slow(beam, EBeam * pb.GetAMU(), d.fRP.X());
+                          },
+                          {"MergerData"})
                   .DefineSlot("Rec_EBeam", // assuming Ex = 0 using outgoing light particle kinematics
                               [&](unsigned int slot, double EVertex, const ActRoot::MergerData& d)
                               {
@@ -127,85 +153,93 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     def = def.Define("RangeHeavy", [&](ActRoot::MergerData& d) { return d.fHeavy.fTL; }, {"MergerData"});
 
 
-    // Create two nodes
+    // Create node to gate on different conditions: silicon layer, l1, etc
+    // L0 trigger
     auto nodel0 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == false; }, {"MergerData"})};
+    // L0 -> side silicons
     auto nodeLat {nodel0.Filter([](ActRoot::MergerData& d)
                                 { return d.fLight.fLayers.front() == "l0" || d.fLight.fLayers.front() == "r0"; },
                                 {"MergerData"})};
+    // L0 -> front silicons
     auto nodeFront {
         nodel0.Filter([](ActRoot::MergerData& d) { return d.fLight.fLayers.front() == "f0"; }, {"MergerData"})};
+
+    // L1 trigger
     auto nodel1 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == true; }, {"MergerData"})};
 
-    // Filter in Ep vs Range
+    // Selection in Ep vs R20Mg plot
     auto nodeEpRange {nodel0.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
                                     {"RangeHeavy", "EVertex"})};
 
     // Kinematics and Ex
     auto hKin {def.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
     auto hKinCM {def.Histo2D(HistConfig::KinCM, "ThetaCM", "EVertex")};
-    auto hEBeam {def.Histo1D(HistConfig::EBeam, "EBeam")};
-    auto hRecEBeam {def.Histo1D(HistConfig::EBeam, "Rec_EBeam")};
-    auto hExSilLat {nodeLat.Histo1D(HistConfig::Ex, "Ex")};
-    hExSilLat->SetTitle("Side");
-    auto hExSilFront {nodeFront.Histo1D(HistConfig::Ex, "Ex")};
-    hExSilFront->SetTitle("Front");
-    auto hExSil {nodel0.Histo1D(HistConfig::Ex, "Ex")};
-    hExSil->SetTitle("All");
 
-    auto hExL1 {nodel1.Histo1D(HistConfig::Ex, "Ex")};
-    hExL1->SetTitle("Ex with L1");
+    // Create vector of nodes and labels
+    std::vector<std::string> labels {"All", "Lat", "Front", "L1"};
+    std::vector<ROOT::RDF::RNode> nodes {def, nodeLat, nodeFront, nodel1};
 
+    // EBeam
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsEBeam;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::EBeam, "EBeam")};
+        hsEBeam.push_back(h);
+    }
+    // Rec EBeam
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsRecEBeam;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::EBeam, "Rec_EBeam")};
+        hsRecEBeam.push_back(h);
+    }
+
+    // Ex
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsEx;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::Ex, "Ex")};
+        hsEx.push_back(h);
+    }
+    // ECM
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsECM;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::ECM, "ECM")};
+        hsECM.push_back(h);
+    }
+    std::vector<ROOT::RDF::RResultPtr<TH2D>> hsECM2d;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo2D(HistConfig::ThetaCMECM, "ThetaCM", "ECM")};
+        hsECM2d.push_back(h);
+    }
+    // RPx
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsRPx;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
+        hsRPx.push_back(h);
+    }
     auto hThetaBeam {def.Histo2D(HistConfig::ThetaBeam, "fRP.fCoordinates.fX", "fThetaBeam")};
     auto hRP {def.Histo2D(HistConfig::RP, "fRP.fCoordinates.fX", "fRP.fCoordinates.fY")};
-    auto hRPx {def.Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
-    auto hRPxFront {nodeFront.Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
-    hRPxFront->SetLineColor(46);
-    hRPxFront->SetTitle("Front");
-    auto hRPxSide {nodeLat.Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
-    hRPxSide->SetLineColor(8);
-    hRPxSide->SetTitle("Side");
-    auto hRPxL1 {nodel1.Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
-    hRPxL1->SetLineColor(kOrange);
-    hRPxL1->SetTitle("L1");
-
     auto hThetaCMLab {def.Histo2D(HistConfig::ThetaCMLab, "fThetaLight", "ThetaCM")};
-
     // Ex dependences
     auto hExThetaCM {def.Histo2D(HistConfig::ExThetaCM, "ThetaCM", "Ex")};
     auto hExThetaLab {def.Histo2D(HistConfig::ExThetaLab, "fThetaLight", "Ex")};
     auto hExRP {def.Histo2D(HistConfig::ExRPx, "fRP.fCoordinates.fX", "Ex")};
-
+    auto hExZ {nodel0.Histo2D(HistConfig::ExZ, "fSP.fCoordinates.fZ", "Ex")};
     // Heavy histograms
     auto hThetaHLLab {def.Histo2D(HistConfig::ChangeTitle(HistConfig::ThetaHeavyLight, "Lab correlations"),
                                   "fThetaLight", "fThetaHeavy")};
-
-    // CM things
-    auto hECM {def.Histo1D(HistConfig::ECM, "ECM")};
-    hECM->SetTitle("All");
-    auto hECMLat {nodeLat.Histo1D(HistConfig::ECM, "ECM")};
-    hECMLat->SetLineColor(8);
-    hECMLat->SetTitle("Side");
-    auto hECMFront {nodeFront.Histo1D(HistConfig::ECM, "ECM")};
-    hECMFront->SetLineColor(46);
-    hECMFront->SetTitle("Front");
-    auto hECML1 {nodel1.Histo1D(HistConfig::ECM, "ECM")};
-    hECML1->SetLineColor(kOrange);
-    hECML1->SetTitle("L1");
-
     auto hRecECM {def.Histo1D(HistConfig::ECM, "Rec_ECM")};
     hRecECM->SetTitle("Rec E_{CM} with E_{x} = 0");
 
-    auto hECM2dFront {nodeFront.Histo2D(HistConfig::ThetaCMECM, "ThetaCM", "ECM")};
-    hECM2dFront->SetTitle("Front");
-    auto hECM2dLat {nodeLat.Histo2D(HistConfig::ThetaCMECM, "ThetaCM", "ECM")};
-    hECM2dLat->SetTitle("Side");
-    auto hECM2dL1 {nodel1.Histo2D(HistConfig::ThetaCMECM, "ThetaCM", "ECM")};
-    hECM2dL1->SetTitle("L1");
-    
+    // Histograms for online analysis
     auto hRPxELab {
         nodel1.Filter("70 < fThetaLight && fThetaLight < 80")
-        .Histo2D({"hRPxELab", "#theta_{Lab} in [70, 80];RP.X [mm];E_{Vertex} [#circ]", 400, 0, 260, 300, 0, 30},
-                       "fRP.fCoordinates.fX", "EVertex")};
+            .Histo2D({"hRPxELab", "#theta_{Lab} in [70, 80];RP.X [mm];E_{Vertex} [#circ]", 400, 0, 260, 300, 0, 30},
+                     "fRP.fCoordinates.fX", "EVertex")};
 
     auto hRPxThetaLab {
         nodel1.Histo2D({"hRPxThetaLab", "L1 exlusion zone;RP.X [mm];#theta_{Lab} [#circ]", 400, 0, 260, 300, 0, 90},
@@ -230,22 +264,56 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     // streamer.close();
 
 
+    // Set styles for histograms
+    std::vector<int> colors {-1, 8, 46, 9};
+    for(int i = 0; i < hsEBeam.size(); i++)
+    {
+        auto& col {colors[i]};
+        auto title {labels[i].c_str()};
+        hsEBeam[i]->SetTitle(title);
+        hsEBeam[i]->SetLineColor(col);
+
+        hsRecEBeam[i]->SetTitle(title);
+        hsRecEBeam[i]->SetLineColor(col);
+
+        hsEx[i]->SetTitle(title);
+        hsEx[i]->SetLineColor(col);
+
+        hsECM[i]->SetTitle(title);
+        hsECM[i]->SetLineColor(col);
+
+        hsECM2d[i]->SetTitle(title);
+
+        hsRPx[i]->SetTitle(title);
+        hsRPx[i]->SetLineColor(col);
+        if(i == 0)
+        {
+            hsEBeam[i]->SetTitle("E_{beam}");
+            hsRecEBeam[i]->SetTitle("Rec E_{beam}");
+            hsEx[i]->SetTitle("E_{x}");
+            hsECM[i]->SetTitle("E_{CM}");
+            hsECM2d[i]->SetTitle("E_{CM} vs #theta_{CM}");
+            hsRPx[i]->SetTitle("RP_{x}");
+        }
+    }
+
+
     auto* c22 {new TCanvas("c22", "Pipe2 canvas 2")};
     c22->DivideSquare(4);
     c22->cd(1);
     hRP->DrawClone();
     c22->cd(2);
-    hRPx->DrawClone();
-    hRPxFront->DrawClone("same");
-    hRPxSide->DrawClone("same");
-    hRPxL1->DrawClone("same");
+    for(int i = 0; i < hsRPx.size(); i++)
+        hsRPx[i]->DrawClone(i == 0 ? "" : "same");
     gPad->BuildLegend();
     c22->cd(3);
-    hThetaBeam->DrawClone("colz");
+    for(int i = 0; i < hsRPx.size(); i++)
+        hsEBeam[i]->DrawClone(i == 0 ? "" : "same");
+    gPad->BuildLegend();
     c22->cd(4);
-    hEBeam->DrawClone();
-    hRecEBeam->SetLineColor(8);
-    hRecEBeam->DrawClone("same");
+    for(int i = 0; i < hsRPx.size(); i++)
+        hsRecEBeam[i]->DrawClone(i == 0 ? "" : "same");
+    gPad->BuildLegend();
 
     auto* c21 {new TCanvas("c21", "Pipe2 canvas 1")};
     c21->DivideSquare(6);
@@ -253,57 +321,51 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hKin->DrawClone("colz");
     auto* theo {kin.GetKinematicLine3()};
     kin.SetEx(1.6);
-    auto* theoIn {kin.GetKinematicLine3()};
-    theoIn->SetLineColor(46);
-    theoIn->SetLineStyle(kDashed);
+    auto* theoIne {kin.GetKinematicLine3()};
+    theoIne->SetLineColor(46);
+    theoIne->SetLineStyle(kDashed);
     theo->Draw("same");
-    theoIn->Draw("same");
+    theoIne->Draw("same");
     c21->cd(2);
-    hExSil->DrawClone();
-    hExSilLat->SetLineColor(8);
-    hExSilLat->DrawClone("same");
-    hExSilFront->SetLineColor(46);
-    hExSilFront->DrawClone("same");
+    for(int i = 0; i < hsRPx.size() - 1; i++)
+        hsEx[i]->DrawClone(i == 0 ? "" : "same");
     gPad->BuildLegend();
     c21->cd(3);
-    hKinCM->DrawClone("colz");
+    hsEx.back()->SetTitle("E_{x} with L1");
+    hsEx.back()->DrawClone();
     c21->cd(4);
-    hExL1->DrawClone();
-    // hExThetaLab->DrawClone("colz");
+    hExThetaLab->DrawClone("colz");
     c21->cd(5);
-    hExThetaCM->DrawClone("colz");
+    hExZ->DrawClone("colz");
     c21->cd(6);
     hExRP->DrawClone("colz");
 
-    auto* c23 {new TCanvas {"c23", "Pipe2 canvas 3"}};
-    c23->DivideSquare(4);
-    c23->cd(1);
-    hThetaHLLab->DrawClone("colz");
-    c23->cd(2);
-    hThetaCMLab->DrawClone("colz");
-    c23->cd(3);
+    // auto* c23 {new TCanvas {"c23", "Pipe2 canvas 3"}};
+    // c23->DivideSquare(4);
+    // c23->cd(1);
+    // hThetaHLLab->DrawClone("colz");
+    // c23->cd(2);
+    // hThetaCMLab->DrawClone("colz");
+    // c23->cd(3);
 
     auto* c24 {new TCanvas {"c24", "Pipe2 canvas 4"}};
     c24->DivideSquare(6);
     c24->cd(1);
-    hECM->DrawClone();
-    hECMLat->DrawClone("same");
-    hECMFront->DrawClone("same");
-    hECML1->DrawClone("same");
+    for(int i = 0; i < hsRPx.size(); i++)
+        hsECM[i]->DrawClone(i == 0 ? "" : "same");
     gPad->BuildLegend();
     c24->cd(2);
-    // hRPxELab->DrawClone("colz");
     hECMRPx->DrawClone("colz");
-    // hECM2dFront->DrawClone("colz");
-    // hECM2dLat->DrawClone("colz same");
     c24->cd(3);
     hRPxThetaLab->DrawClone("colz");
     c24->cd(4);
-    hECM2dL1->DrawClone("colz");
+    hsECM2d.front()->DrawClone("colz");
+    // hECM2dL1->DrawClone("colz");
     c24->cd(5);
     hEpRMg->DrawClone("colz");
     cuts.DrawCut("ep_range");
     c24->cd(6);
+    hECMCut->SetTitle("E_{CM} with cut on elastic");
     hECMCut->DrawClone("colz");
     // hECMRPx->DrawClone("colz");
 }
