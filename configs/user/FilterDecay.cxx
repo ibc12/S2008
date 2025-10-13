@@ -21,14 +21,27 @@ void ActAlgorithm::FilterDecay::Run()
 {
     if(!fIsEnabled)
         return;
+
+    if(!fTPCData) {
+        if(fIsVerbose) std::cerr << "FilterDecay: fTPCData is null\n";
+        return;
+    }
+
+    // copy/ref clusters
+    auto &clusters = fTPCData->fClusters;
+    if(clusters.empty()) {
+        if(fIsVerbose) std::cout << "FilterDecay: no clusters\n";
+        return;
+    }
+
     // Assign the highest angle cluster to the light
-    ActRoot::Cluster clusterLight {};
-    auto clusters {fTPCData->fClusters};
-    double angleLight {-1};
-    for(auto c : clusters)
+    ActRoot::Cluster clusterLight = clusters.front();
+    double angleLight = -1.0;
+    for(const auto &c : clusters)
     {
-        double angleCluster {c.GetLine().GetDirection().Dot(ROOT::Math::XYZVectorF(1, 0, 0))};
-        angleCluster = TMath::Abs(angleCluster);
+        // defensively get direction
+        auto dir = c.GetLine().GetDirection();
+        double angleCluster = std::abs(dir.Dot(ROOT::Math::XYZVectorF(1, 0, 0)));
         if(angleCluster > angleLight)
         {
             angleLight = angleCluster;
@@ -36,25 +49,51 @@ void ActAlgorithm::FilterDecay::Run()
         }
     }
 
-    // Now check if there is a shift in z coordinate respect the rp
     clusterLight.SortAlongDir();
-    auto rp {fTPCData->fRPs[0]};
 
-    double zFirstClusterLight {clusterLight.GetRefToVoxels().front().GetPosition().Z()};
+    // guard RPs
+    if(fTPCData->fRPs.empty()) {
+        if(fIsVerbose) std::cout << "FilterDecay: no RPs available\n";
+        return;
+    }
+
+    // safe copy of rp
+    auto rp = fTPCData->fRPs[0];
+
+    // guard voxels
+    const auto &voxels = clusterLight.GetRefToVoxels();
+    if(voxels.empty()) {
+        if(fIsVerbose) std::cout << "FilterDecay: selected cluster has no voxels\n";
+        return;
+    }
+
+    double zFirstClusterLight = voxels.front().GetPosition().Z();
 
     if(std::abs(zFirstClusterLight - rp.Z()) > fMinLength)
     {
         if(fIsVerbose)
         {
-            std::cout << BOLDGREEN << "-- Decay filter --" << '\n';
+            std::cout << BOLDGREEN << "-- Decay filter --\n";
             std::cout << "First Z cluster light: " << zFirstClusterLight << '\n';
             std::cout << "Z RP: " << rp.Z() << '\n';
             std::cout << "Delta Z: " << std::abs(zFirstClusterLight - rp.Z()) << RESET << '\n';
         }
         // Clear all clusters and push only the light one
-        fTPCData->fClusters.clear();
+        clusters.clear();
+    }
+    else
+    {
+        if(fIsVerbose)
+        {
+            std::cout << BOLDRED << "-- Decay filter --\n";
+            std::cout << "First Z cluster light: " << zFirstClusterLight << '\n';
+            std::cout << "Z RP: " << rp.Z() << '\n';
+            std::cout << "Delta Z: " << std::abs(zFirstClusterLight - rp.Z()) << RESET << '\n';
+            std::cout << "Event rejected by decay filter\n";
+        }
     }
 }
+
 
 void ActAlgorithm::FilterDecay::Print() const
 {
