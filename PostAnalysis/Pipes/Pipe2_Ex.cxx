@@ -22,6 +22,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -61,6 +62,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     ActRoot::CutsManager<std::string> cuts;
     cuts.ReadCut("ep_range", "./Cuts/ep_range_p_20Mg.root");
     cuts.ReadCut("debug", "./Cuts/debug_l1.root");
+    cuts.ReadCut("debug_ep_range", "./Cuts/debug_ep_range.root");
 
     // Build energy at vertex
     auto dfVertex = df.Define("EVertex",
@@ -256,10 +258,10 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     def.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
 
-    // std::ofstream streamer {"./debug_l1.dat"};
-    // auto nodeStreamer {nodel1.Filter([&](double ECM, double thetaCM) { return cuts.IsInside("debug", thetaCM, ECM);
-    // },
-    //                                  {"ECM", "ThetaCM"})};
+    // std::ofstream streamer {"./debug_ep_range.dat"};
+    auto nodeStreamer {def.Filter([&](double e, float range) { return cuts.IsInside("debug_ep_range", range, e); },
+                                  {"EVertex", "RangeHeavy"})};
+    auto hKinDebug {nodeStreamer.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
     // nodeStreamer.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
     // streamer.close();
 
@@ -299,7 +301,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
 
     auto* c22 {new TCanvas("c22", "Pipe2 canvas 2")};
-    c22->DivideSquare(4);
+    c22->DivideSquare(6);
     c22->cd(1);
     hRP->DrawClone();
     c22->cd(2);
@@ -314,6 +316,9 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     for(int i = 0; i < hsRPx.size(); i++)
         hsRecEBeam[i]->DrawClone(i == 0 ? "" : "same");
     gPad->BuildLegend();
+    c22->cd(5);
+    hKinDebug->SetTitle("DebugKin in weird Ep_R plot");
+    hKinDebug->DrawClone("colz");
 
     auto* c21 {new TCanvas("c21", "Pipe2 canvas 1")};
     c21->DivideSquare(6);
@@ -364,9 +369,16 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     c24->cd(5);
     hEpRMg->DrawClone("colz");
     cuts.DrawCut("ep_range");
+    cuts.DrawCut("debug_ep_range");
     c24->cd(6);
     hECMCut->SetTitle("E_{CM} with cut on elastic");
     hECMCut->DrawClone("colz");
     // hECMRPx->DrawClone("colz");
+
+    // Save to file
+    auto fout {std::make_unique<TFile>("./Outputs/gated_ecm.root", "update")};
+    hEpRMg->Write();
+    hECMCut->Write();
+    fout->Close();
 }
 #endif
