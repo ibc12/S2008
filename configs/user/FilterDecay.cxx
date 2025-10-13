@@ -4,24 +4,20 @@
 #include "ActRANSAC.h"
 #include "ActTPCData.h"
 
-#include "UserAction.h"
+#include "FilterDecay.h"
 
 #include <memory>
 
-void ActAlgorithm::UserAction::UserAction::ReadConfiguration(std::shared_ptr<ActRoot::InputBlock> block)
+void ActAlgorithm::FilterDecay::FilterDecay::ReadConfiguration(std::shared_ptr<ActRoot::InputBlock> block)
 {
     fIsEnabled = block->GetBool("IsEnabled");
     if(!fIsEnabled)
         return;
-    // if(block->CheckTokenExists("MaxAngle"))
-    //     fMaxAngle = block->GetDouble("MaxAngle");
-    // if(block->CheckTokenExists("MinLength"))
-    //     fMinLength = block->GetDouble("MinLength");
-    // if(block->CheckTokenExists("CylinderR"))
-    //     fCylinderR = block->GetDouble("CylinderR");
+    if(block->CheckTokenExists("MinLength"))
+        fMinLength = block->GetDouble("MinLength");
 }
 
-void ActAlgorithm::UserAction::Run()
+void ActAlgorithm::FilterDecay::Run()
 {
     if(!fIsEnabled)
         return;
@@ -46,8 +42,7 @@ void ActAlgorithm::UserAction::Run()
 
     double zFirstClusterLight {clusterLight.GetRefToVoxels().front().GetPosition().Z()};
 
-    double distMinDecay {5.}; // pads
-    if(std::abs(zFirstClusterLight - rp.Z()) > distMinDecay)
+    if(std::abs(zFirstClusterLight - rp.Z()) > fMinLength)
     {
         if(fIsVerbose)
         {
@@ -61,7 +56,7 @@ void ActAlgorithm::UserAction::Run()
     }
 }
 
-void ActAlgorithm::UserAction::Print() const
+void ActAlgorithm::FilterDecay::Print() const
 {
     std::cout << BOLDCYAN << "····· " << GetActionID() << " ·····" << '\n';
     if(!fIsEnabled)
@@ -69,13 +64,11 @@ void ActAlgorithm::UserAction::Print() const
         std::cout << "······························" << RESET << '\n';
         return;
     }
-    std::cout << "  MaxAngle       : " << fMaxAngle << '\n';
     std::cout << "  MinLength      : " << fMinLength << '\n';
-    std::cout << "  CylinderRadius : " << fCylinderR << RESET << '\n';
 }
 
 // Create symbol to load class from .so
-extern "C" ActAlgorithm::UserAction* CreateUserAction()
+extern "C" ActAlgorithm::FilterDecay* CreateUserAction()
 {
-    return new ActAlgorithm::UserAction;
+    return new ActAlgorithm::FilterDecay;
 }
