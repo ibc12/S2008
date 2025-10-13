@@ -79,7 +79,8 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto mtarget {pt.GetMass()};
     ActPhysics::Particle pl {light};
     // Declare kinematics
-    double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
+    // double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
+    double EBeamIni {4.17}; // AMeV at X = 0. WARNING: SUSPICTION THIS IS NOT 20Mg
     // That is, including elosses in CFA, entrance window, etc
     ActPhysics::Kinematics kin {pb, pt, pl, EBeamIni * pb.GetAMU()};
     // Vector of kinematics as one object is needed per
@@ -210,7 +211,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
         nodel1.Histo2D({"hRPxThetaLab", "L1 exlusion zone;RP.X [mm];#theta_{Lab} [#circ]", 400, 0, 260, 300, 0, 90},
                        "fRP.fCoordinates.fX", "fThetaLight")};
 
-    auto hECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
+    auto hECMRPx {nodeFront.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "ECM")};
     auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
     auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "RangeHeavy", "EVertex")};
 
@@ -291,7 +292,8 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECML1->DrawClone("same");
     gPad->BuildLegend();
     c24->cd(2);
-    hRPxELab->DrawClone("colz");
+    // hRPxELab->DrawClone("colz");
+    hECMRPx->DrawClone("colz");
     // hECM2dFront->DrawClone("colz");
     // hECM2dLat->DrawClone("colz same");
     c24->cd(3);
@@ -300,6 +302,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECM2dL1->DrawClone("colz");
     c24->cd(5);
     hEpRMg->DrawClone("colz");
+    cuts.DrawCut("ep_range");
     c24->cd(6);
     hECMCut->DrawClone("colz");
     // hECMRPx->DrawClone("colz");
