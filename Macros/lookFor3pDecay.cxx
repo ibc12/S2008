@@ -176,11 +176,12 @@ void lookFor3pDecay()
     auto* c2 {new TCanvas("c2", "3p decay angles")};
     c2->DivideSquare(3);
     c2->cd(1);
-    auto hTheta1 {df_angles.Histo1D(HistConfig::ThetaLab("Theta1"), "threeAngles.theta1")};
-    hTheta1->DrawClone();
-    c2->cd(2);
-    auto hTheta2 {df_angles.Histo1D(HistConfig::ThetaLab("Theta2"), "threeAngles.theta2")};
-    hTheta2->DrawClone();
-    c2->cd(3);
-    auto hTheta3 {df_angles.Histo1D(HistConfig::ThetaLab("Theta3"), "threeAngles.theta3")};
+    //const ROOT::RDF::TH1DModel ThetaLab {"hThetaLab", "ThetaLab;#theta_{lab} [#circ]", 600, 0, 180};
+    //auto hTheta1 {df_angles.Histo1D(ThetaLab, "threeAngles.theta1")};
+    //hTheta1->DrawClone();
+    //c2->cd(2);
+    //auto hTheta2 {df_angles.Histo1D(ThetaLab, "threeAngles.theta2")};
+    //hTheta2->DrawClone();
+    //c2->cd(3);
+    //auto hTheta3 {df_angles.Histo1D(ThetaLab, "threeAngles.theta3")};
 }
