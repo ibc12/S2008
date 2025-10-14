@@ -3,6 +3,7 @@
 #include "ActKinematics.h"
 #include "ActMergerData.h"
 #include "ActModularData.h"
+#include "ActTPCData.h"
 #include "ActTypes.h"
 
 #include "ROOT/RDataFrame.hxx"
@@ -22,8 +23,10 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     // Read data
     ActRoot::DataManager dataman {dataconf, ActRoot::ModeType::EMerge};
     auto chain {dataman.GetChain()};
-    auto chain2 {dataman.GetChain(ActRoot::ModeType::EReadSilMod)};
-    chain->AddFriend(chain2.get());
+    auto chainSil {dataman.GetChain(ActRoot::ModeType::EReadSilMod)};
+    chain->AddFriend(chainSil.get());
+    auto chainFilter {dataman.GetChain(ActRoot::ModeType::EFilter)};
+    chain->AddFriend(chainFilter.get());
 
     // RDataFrame
     ROOT::EnableImplicitMT();
@@ -42,8 +45,13 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
                             return false;
                     }};
     // 4-> L1
-    auto lambdaIsL1 {[](ActRoot::MergerData& mer, ActRoot::ModularData& mod)
-                     { return (mod.Get("GATCONF") == 8) && (mer.fLightIdx != -1); }};
+    auto lambdaIsL1 {[](ActRoot::MergerData& mer, ActRoot::ModularData& mod, ActRoot::TPCData& tpc)
+                     {
+                         if(mod.Get("GATCONF") == 8 && (mer.fLightIdx != -1))
+                             if(!tpc.fClusters[mer.fLightIdx].GetFlag("IsRANSAC"))
+                                 return true;
+                         return false;
+                     }};
 
     // Fill histograms
     std::map<std::string, ROOT::TThreadedObject<TH2D>> hsgas, hstwo;
@@ -67,10 +75,10 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
 
     // Fill them
     df.Foreach(
-        [&](ActRoot::MergerData& m, ActRoot::ModularData& mod)
+        [&](ActRoot::MergerData& m, ActRoot::ModularData& mod, ActRoot::TPCData& tpc)
         {
             // L1
-            if(lambdaIsL1(m, mod))
+            if(lambdaIsL1(m, mod, tpc))
             {
                 hl1->Fill(m.fLight.fRawTL, m.fLight.fQtotal);
                 hl1theta->Fill(m.fThetaLight, m.fLight.fQtotal);
@@ -91,7 +99,7 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
                 hstwo["f0-f1"]->Fill(m.fLight.fEs[0], m.fLight.fEs[1]);
             }
         },
-        {"MergerData", "ModularData"});
+        {"MergerData", "ModularData", "TPCData"});
 
     // If cuts are present, apply them
     ActRoot::CutsManager<std::string> cuts;
@@ -109,10 +117,10 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
     {
         // Apply PID and save in file
         auto gated {df.Filter(
-            [&](ActRoot::MergerData& m, ActRoot::ModularData& mod)
+            [&](ActRoot::MergerData& m, ActRoot::ModularData& mod, ActRoot::TPCData& tpc)
             {
                 // L1
-                if(lambdaIsL1(m, mod))
+                if(lambdaIsL1(m, mod, tpc))
                 {
                     if(cuts.GetCut("l1"))
                         return cuts.IsInside("l1", m.fLight.fRawTL, m.fLight.fQtotal);
@@ -137,10 +145,10 @@ void Pipe1_PID(const std::string& beam, const std::string& target, const std::st
                 else
                     return false;
             },
-            {"MergerData", "ModularData"})};
+            {"MergerData", "ModularData", "TPCData"})};
         auto name {TString::Format("./Outputs/tree_pid_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
         std::cout << "Saving PID_Tree in file : " << name << '\n';
-        gated.Snapshot("PID_Tree", name.Data());
+        gated.Snapshot("PID_Tree", name.Data(), {"MergerData"});
     }
 
     // Draw

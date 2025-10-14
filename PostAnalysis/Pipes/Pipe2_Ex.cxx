@@ -60,7 +60,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // Read cuts
     ActRoot::CutsManager<std::string> cuts;
-    cuts.ReadCut("ep_range", "./Cuts/ep_range_p_20Mg.root");
+    cuts.ReadCut("ep_range", "./Cuts/elastic_ep_range.root");
     cuts.ReadCut("debug", "./Cuts/debug_l1.root");
     cuts.ReadCut("debug_ep_range", "./Cuts/debug_ep_range.root");
 
@@ -91,7 +91,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     std::map<int, double> EBeams;
     for(int run = 31; run <= 40; run++)
         EBeams[run] = EBeamFirst;
-    for(int run = 47; run <= 60; run++)
+    for(int run = 47; run <= 90; run++)
         EBeams[run] = EBeamSecond;
     // Allegedly wrong LISE calculation below
     // double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
@@ -155,7 +155,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
                         {"MergerData", "EVertex", "EBeam"});
 
     // Define range of heavy particle
-    def = def.Define("RangeHeavy", [&](ActRoot::MergerData& d) { return d.fHeavy.fTL; }, {"MergerData"});
+    def = def.Define("RangeHeavy", [&](ActRoot::MergerData& d) { return d.fRP.X() + d.fHeavy.fTL; }, {"MergerData"});
 
 
     // Create node to gate on different conditions: silicon layer, l1, etc
@@ -173,12 +173,14 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto nodel1 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == true; }, {"MergerData"})};
 
     // Selection in Ep vs R20Mg plot
-    auto nodeEpFront {nodel0.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
-                                    {"RangeHeavy", "EVertex"})};
-    // Side events in Ep vs R20Mg plot
-    auto nodeEpSide {nodel0.Filter([&](float range, double elab)
-                                   { return cuts.IsInside("debug_ep_range", range, elab); },
+    auto nodeEpRSil {nodel0.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
                                    {"RangeHeavy", "EVertex"})};
+    auto nodeEpFront {nodeFront.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
+                                       {"RangeHeavy", "EVertex"})};
+    // Side events in Ep vs R20Mg plot
+    auto nodeEpSide {nodeLat.Filter([&](float range, double elab)
+                                    { return cuts.IsInside("debug_ep_range", range, elab); },
+                                    {"RangeHeavy", "EVertex"})};
 
 
     // Kinematics and Ex
@@ -259,29 +261,30 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto hRecECMRPx {def.Histo2D(HistConfig::RPxECM, "fRP.fCoordinates.fX", "Rec_ECM")};
     auto hEpRMg {def.Histo2D(HistConfig::EpRMg, "RangeHeavy", "EVertex")};
     // ECM from cuts in Ep vs R20Mg histo
+    auto hECMCutSil {nodeEpRSil.Histo1D(HistConfig::ECM, "ECM")};
     auto hECMCutFront {nodeEpFront.Histo1D(HistConfig::ECM, "ECM")};
     auto hECMCutSide {nodeEpSide.Histo1D(HistConfig::ECM, "ECM")};
 
 
-    // Save!
+    // Save only the Ep_Range selection with silicons
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
-    def.Snapshot("Final_Tree", outfile);
+    nodeEpRSil.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
 
     // std::ofstream streamer {"./debug_ep_range.dat"};
-    auto nodeStreamer {def.Filter([&](double e, float range) { return cuts.IsInside("debug_ep_range", range, e); },
-                                  {"EVertex", "RangeHeavy"})};
-    auto hKinDebug {nodeStreamer.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
-    auto hCorrEDebug {
-        nodel0.Histo2D({"hDebug", ";TL;RP.X", 300, 0, 200, 300, 0, 200}, "RangeHeavy", "fRP.fCoordinates.fX")
-        // nodel0.Filter([](ActRoot::MergerData& m) { return m.fLight.IsL1() == false; }, {"MergerData"})
-        //     .Filter("120 <= RangeHeavy && RangeHeavy <= 140")
-        //     .Define("ESil", [](ActRoot::MergerData& m) { return m.fLight.fEs.front(); }, {"MergerData"})
-        //     .Histo2D({"hDebug", "Debug ep range;#theta_{Lab} [#circ];E_{Sil} [MeV]", 300, 0, 100, 300, 0, 15},
-        //              "fThetaLight", "ESil")
-        // .Histo2D({"hECorr", "Check E sil rec;E_{Sil} [MeV];E_{Vertex} [MeV]", 300, 0, 15, 300, 0, 15}, "ESil",
-        //          "EVertex")
-    };
+    // auto nodeStreamer {def.Filter([&](double e, float range) { return cuts.IsInside("debug_ep_range", range, e); },
+    //                               {"EVertex", "RangeHeavy"})};
+    // auto hKinDebug {nodeStreamer.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
+    // auto hCorrEDebug {
+    //     nodel0.Histo2D({"hDebug", ";TL;RP.X", 300, 0, 200, 300, 0, 200}, "RangeHeavy", "fRP.fCoordinates.fX")
+    // nodel0.Filter([](ActRoot::MergerData& m) { return m.fLight.IsL1() == false; }, {"MergerData"})
+    //     .Filter("120 <= RangeHeavy && RangeHeavy <= 140")
+    //     .Define("ESil", [](ActRoot::MergerData& m) { return m.fLight.fEs.front(); }, {"MergerData"})
+    //     .Histo2D({"hDebug", "Debug ep range;#theta_{Lab} [#circ];E_{Sil} [MeV]", 300, 0, 100, 300, 0, 15},
+    //              "fThetaLight", "ESil")
+    // .Histo2D({"hECorr", "Check E sil rec;E_{Sil} [MeV];E_{Vertex} [MeV]", 300, 0, 15, 300, 0, 15}, "ESil",
+    //          "EVertex")
+    // };
     // nodeStreamer.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
     // streamer.close();
 
@@ -336,11 +339,11 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     for(int i = 0; i < hsRPx.size(); i++)
         hsRecEBeam[i]->DrawClone(i == 0 ? "" : "same");
     gPad->BuildLegend();
-    c22->cd(5);
-    hKinDebug->SetTitle("DebugKin in weird Ep_R plot");
-    hKinDebug->DrawClone("colz");
-    c22->cd(6);
-    hCorrEDebug->DrawClone("colz");
+    // c22->cd(5);
+    // hKinDebug->SetTitle("DebugKin in weird Ep_R plot");
+    // hKinDebug->DrawClone("colz");
+    // c22->cd(6);
+    // hCorrEDebug->DrawClone("colz");
 
     auto* c21 {new TCanvas("c21", "Pipe2 canvas 1")};
     c21->DivideSquare(6);
@@ -395,11 +398,13 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     c24->cd(5);
     hEpRMg->DrawClone("colz");
     cuts.DrawCut("ep_range");
-    cuts.DrawCut("debug_ep_range");
+    // cuts.DrawCut("debug_ep_range");
     c24->cd(6);
-    hECMCutFront->SetTitle("E_{CM} with cut on elastic");
+    hECMCutSil->SetTitle("E_{CM} with silicons and cut on elastic");
+    hECMCutSil->SetLineColor(1);
+    hECMCutSil->DrawClone();
     hECMCutFront->SetLineColor(colors[2]);
-    hECMCutFront->DrawClone();
+    hECMCutFront->DrawClone("same");
     hECMCutSide->SetLineColor(colors[1]);
     hECMCutSide->DrawClone("same");
     // hECMRPx->DrawClone("colz");

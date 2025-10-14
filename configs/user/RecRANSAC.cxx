@@ -46,8 +46,8 @@ void ActAlgorithm::RecRANSAC::Run()
     //     return;
 
     const auto& noise {fTPCData->fRaw};
-    int iter {120};
-    int minVoxels {5};
+    int iter {175};
+    int minVoxels {7};
     double distThresh {2.};
     ActAlgorithm::RANSAC ransac {iter, minVoxels, distThresh};
     auto [clusters, back] {ransac.Run(noise)};
@@ -63,7 +63,11 @@ void ActAlgorithm::RecRANSAC::Run()
         std::sort(clusters.begin(), clusters.end(), [](const ActRoot::Cluster& a, const ActRoot::Cluster& b)
                   { return a.GetLine().GetChi2() < b.GetLine().GetChi2(); });
         // Push the first one
-        fTPCData->fClusters.push_back(clusters.front());
+        auto& cluster {clusters.front()};
+        // Set flag
+        cluster.SetFlag("IsRANSAC", true);
+        // Push to vector
+        fTPCData->fClusters.push_back(cluster);
     }
 }
 

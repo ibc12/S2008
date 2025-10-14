@@ -13,6 +13,7 @@
 void gateOnGatconf()
 {
     ActRoot::DataManager dataman {"../configs/data.conf", ActRoot::ModeType::EReadSilMod};
+    dataman.SetRuns(60, 61);
     auto chain {dataman.GetChain()};
     auto chainMerger {dataman.GetChain(ActRoot::ModeType::EMerge)};
     chain->AddFriend(chainMerger.get());
@@ -21,13 +22,15 @@ void gateOnGatconf()
     auto df {d.Define("GATCONF", [](ActRoot::ModularData& mod) { return mod.Get("GATCONF"); }, {"ModularData"})};
 
     auto dfFilter {df.Filter(
-        [](float gatconf)
+        [](float gatconf, ActRoot::MergerData& mer)
         {
-            if(gatconf == 512)
+            if(gatconf == 8 && mer.fLightIdx != -1)
+            {
                 return true;
+            }
             return false;
         },
-        {"GATCONF"})};
+        {"GATCONF", "MergerData"})};
 
     // Book histogram
     auto hgat {df.Histo1D({"hgat", "GATCONF;GATCONF", 600, 0, 600}, "GATCONF")};
@@ -46,7 +49,7 @@ void gateOnGatconf()
     //     {"SilData", "MergerData"})};
 
     // Stream entry number
-    std::ofstream streamer {"./Outputs/gatconf_sil_notval.dat"};
+    std::ofstream streamer {"./Outputs/gatconf_l1.dat"};
     dfFilter.Foreach([&](ActRoot::MergerData& mer) { mer.Stream(streamer); }, {"MergerData"});
     streamer.close();
     // std::ofstream streamer1 {"./Outputs/gatconf_f0_true.dat"};
