@@ -32,7 +32,7 @@ void plotECM_intervalsThetaCM()
     {
         hECMs.push_back(new ROOT::TThreadedObject<TH1D>(
             TString::Format("hECM%d", idx),
-            TString::Format("E_{CM} for #theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts", theta, theta + step),
+            TString::Format("E_{CM} for #theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 50 keV", theta, theta + step),
             HistConfig::ECM.fNbinsX, HistConfig::ECM.fXLow, HistConfig::ECM.fXUp));
         idx++;
     }
@@ -63,7 +63,9 @@ void plotECM_intervalsThetaCM()
     for(auto& h : hECMs)
     {
         c0->cd(p);
-        h->Merge()->DrawClone();
+        auto merged {h->Merge()};
+        merged->GetXaxis()->SetRangeUser(0.6, 4.1);
+        merged->DrawClone();
         p++;
     }
 
