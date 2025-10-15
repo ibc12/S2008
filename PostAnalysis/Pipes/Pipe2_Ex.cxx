@@ -133,7 +133,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
             .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
             .Define("Rec_ECM", [&](double rec_EBeam) { return (mtarget / (mbeam + mtarget)) * rec_EBeam; },
                     {"Rec_EBeam"})
-            .Filter("fRP.fCoordinates.fX <= 205") // Mask decays by position...
+            .Filter("fRP.fCoordinates.fX <= 200") // Mask decays by position... for 20Na; for 20Mg ~ 205 mm
     };
 
     def =
@@ -178,8 +178,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto nodeEpFront {nodeFront.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
                                        {"RangeHeavy", "EVertex"})};
     // Side events in Ep vs R20Mg plot
-    auto nodeEpSide {nodeLat.Filter([&](float range, double elab)
-                                    { return cuts.IsInside("debug_ep_range", range, elab); },
+    auto nodeEpSide {nodeLat.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
                                     {"RangeHeavy", "EVertex"})};
 
 
@@ -350,7 +349,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     c21->cd(1);
     hKin->DrawClone("colz");
     auto* theo {kin.GetKinematicLine3()};
-    kin.SetEx(1.6);
+    kin.SetEx(0.6);
     auto* theoIne {kin.GetKinematicLine3()};
     theoIne->SetLineColor(46);
     theoIne->SetLineStyle(kDashed);
@@ -403,10 +402,10 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECMCutSil->SetTitle("E_{CM} with silicons and cut on elastic");
     hECMCutSil->SetLineColor(1);
     hECMCutSil->DrawClone();
-    //hECMCutFront->SetLineColor(colors[2]);
-    //hECMCutFront->DrawClone("same");
-    //hECMCutSide->SetLineColor(colors[1]);
-    //hECMCutSide->DrawClone("same");
+    hECMCutFront->SetLineColor(colors[2]);
+    hECMCutFront->DrawClone("same");
+    hECMCutSide->SetLineColor(colors[1]);
+    hECMCutSide->DrawClone("same");
     //// hECMRPx->DrawClone("colz");
 
     // // Save to file
