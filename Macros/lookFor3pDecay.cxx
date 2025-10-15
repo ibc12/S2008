@@ -32,19 +32,8 @@ void lookFor3pDecay()
 {
     std::string dataconf {"./../configs/data.conf"};
 
-    // Read data
-    ActRoot::DataManager dataman {dataconf, ActRoot::ModeType::EMerge};
-    auto chain {dataman.GetChain()};
-    auto chain2 {dataman.GetChain(ActRoot::ModeType::EReadSilMod)};
-    chain->AddFriend(chain2.get());
-    auto chain3 {dataman.GetChain(ActRoot::ModeType::EFilter)};
-    chain->AddFriend(chain3.get());
-
     // RDataFrame
     ROOT::EnableImplicitMT();
-    ROOT::RDataFrame df {*chain};
-
-    auto df_filtered {df.Filter([](ActRoot::TPCData& d) { return d.fClusters.size() == 5; }, {"TPCData"})};
 
     // std::ofstream streamer {"./Outputs/debug_3p_decay.dat"};
     // df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
@@ -67,121 +56,49 @@ void lookFor3pDecay()
     ActPhysics::Kinematics kin {pb, pt, pl, EBeam * pb.GetAMU()};
     // Vector of kinematics as one object is needed per
     // processing slot (since we are changing EBeam in each entry)
-    std::vector<ActPhysics::Kinematics> vkins {df.GetNSlots()};
-    for(auto& k : vkins)
-        k = kin;
-
-    // Beam energy calculation and ECM
-    auto def {df_filtered
-                  .Define("EBeam", [&](const ActRoot::TPCData& d)
-                          { return srim->Slow("20Mg", EBeam * pb.GetAMU(), d.fRPs[0].X()); }, {"TPCData"})
-                  .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
-                  .Define("RPx", [&](ActRoot::TPCData& d) { return d.fRPs[0].X(); }, {"TPCData"})};
-    // Create node to gate on different conditions: silicon layer, l1, etc
-    //// L0 trigger
-    // auto nodel0 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == false; }, {"MergerData"})};
-    //// L0 -> side silicons
-    // auto nodeLat {nodel0.Filter([](ActRoot::MergerData& d)
-    //                             { return d.fLight.fLayers.front() == "l0" || d.fLight.fLayers.front() == "r0"; },
-    //                             {"MergerData"})};
-    //// L0 -> front silicons
-    // auto nodeFront {
-    //     nodel0.Filter([](ActRoot::MergerData& d) { return d.fLight.fLayers.front() == "f0"; }, {"MergerData"})};
-    //
-    //// L1 trigger
-    // auto nodel1 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == true; }, {"MergerData"})};
-
-    // // Plot Ecm
-    // std::vector<std::string> labels {"All", "Lat", "Front", "L1"};
-    // std::vector<ROOT::RDF::RNode> nodes {def, nodeLat, nodeFront, nodel1};
-    // // ECM histos
-    // std::vector<ROOT::RDF::RResultPtr<TH1D>> hsECM;
-    // for(int i = 0; i < labels.size(); i++)
-    // {
-    //     auto h {nodes[i].Histo1D(HistConfig::ECM, "ECM")};
-    //     hsECM.push_back(h);
-    // }
-
-    // Get Angles of light and heavy
-    auto df_angles {
-        def.Define("threeAngles",
-                   [&](ActRoot::TPCData& d)
-                   {
-                       threeAngles angles {};
-                       auto clusters {d.fClusters};
-                       int beamIdx {};
-                       int idx {};
-                       for(auto c : clusters)
-                       {
-                           auto isBeam {c.GetIsBeamLike()};
-                           if(isBeam)
-                           {
-                               beamIdx = idx;
-                               break;
-                           }
-                           idx++;
-                       }
-                       // Loop over rest of clusters to get heavy idx
-                       int heavyIdx {};
-                       idx = 0;
-                       float angle {1000.};
-                       for(auto c : clusters)
-                       {
-                           if(idx != beamIdx)
-                           {
-                               auto line {c.GetLine()};
-                               auto anglePreliminar {line.GetDirection().Unit().Dot(ROOT::Math::XYZVector(1, 0, 0))};
-                               if(anglePreliminar < angle)
-                               {
-                                   heavyIdx = idx;
-                                   angle = anglePreliminar;
-                                   break;
-                               }
-                           }
-                           idx++;
-                       }
-                       // Get angles of light respect to heavy
-                       idx = 0;
-                       for(auto c : clusters)
-                       {
-                           if(idx != beamIdx && idx != heavyIdx)
-                           {
-                               auto line {c.GetLine()};
-                               auto direction {line.GetDirection().Unit()};
-                               auto theta {std::acos(direction.Dot(clusters[heavyIdx].GetLine().GetDirection().Unit())) * 180. / TMath::Pi()};
-                               if(angles.theta1 == 0.)
-                                   angles.theta1 = theta;
-                               else if(angles.theta2 == 0.)
-                                   angles.theta2 = theta;
-                               else if(angles.theta3 == 0.)
-                                   angles.theta3 = theta;
-                           }
-                           idx++;
-                       }
-
-                       return angles;
-                   },
-                   {"TPCData"})};
+    
+    // Get data from file
+    std::string outfile {"./Outputs/tree_ex_20Mg_p_3p.root"};
+    ROOT::RDataFrame df_angles {"Final_Tree", outfile};
 
     // Draw them
     auto* c1 {new TCanvas("c1", "3p decay ECM")};
     c1->DivideSquare(2);
     c1->cd(1);
-    auto hECM {def.Histo1D(HistConfig::ECM, "ECM")};
+    auto hECM {df_angles.Histo1D(HistConfig::ECM, "ECM")};
     hECM->DrawClone();
     c1->cd(2);
-    auto hRpx {def.Histo1D(HistConfig::RPx, "RPx")};
+    auto hRpx {df_angles.Histo1D(HistConfig::RPx, "RPx")};
     hRpx->DrawClone();
     // Plot angles
     auto* c2 {new TCanvas("c2", "3p decay angles")};
     c2->DivideSquare(3);
     c2->cd(1);
-    //const ROOT::RDF::TH1DModel ThetaLab {"hThetaLab", "ThetaLab;#theta_{lab} [#circ]", 600, 0, 180};
-    //auto hTheta1 {df_angles.Histo1D(ThetaLab, "threeAngles.theta1")};
-    //hTheta1->DrawClone();
-    //c2->cd(2);
-    //auto hTheta2 {df_angles.Histo1D(ThetaLab, "threeAngles.theta2")};
-    //hTheta2->DrawClone();
-    //c2->cd(3);
-    //auto hTheta3 {df_angles.Histo1D(ThetaLab, "threeAngles.theta3")};
+    // const ROOT::RDF::TH1DModel ThetaLab {"hThetaLab", "ThetaLab;#theta_{lab} [#circ]", 600, 0, 180};
+    // auto hTheta1 {df_angles.Histo1D(ThetaLab, "threeAngles.theta1")};
+    // hTheta1->DrawClone();
+    // c2->cd(2);
+    // auto hTheta2 {df_angles.Histo1D(ThetaLab, "threeAngles.theta2")};
+    // hTheta2->DrawClone();
+    // c2->cd(3);
+    // auto hTheta3 {df_angles.Histo1D(ThetaLab, "threeAngles.theta3")};
+
+    // Plot the Dalizt plots
+    auto cDalitz {new TCanvas("cDalitz", "3p decay Dalitz")};
+    const ROOT::RDF::TH2DModel Dalitz {"hDalitz", "Dalitz;#epsilon_{1};#epsilon_{2}", 200, 0, 1, 200, 0, 1};
+    cDalitz->DivideSquare(3);
+    cDalitz->cd(1);
+    auto hDalitz {df_angles.Histo2D(Dalitz, "epsilon1", "epsilon2")};
+    hDalitz->DrawClone("colz");
+    cDalitz->cd(2);
+    auto hDalitz2 {df_angles.Histo2D(Dalitz, "epsilon2", "epsilon3")};
+    hDalitz2->GetXaxis()->SetTitle("#epsilon_{2}");
+    hDalitz2->GetYaxis()->SetTitle("#epsilon_{3}");
+    hDalitz2->DrawClone("colz");
+    cDalitz->cd(3);
+    auto hDalitz3 {df_angles.Histo2D(Dalitz, "epsilon3", "epsilon1")};
+    hDalitz3->GetXaxis()->SetTitle("#epsilon_{3}");
+    hDalitz3->GetYaxis()->SetTitle("#epsilon_{1}");
+    hDalitz3->DrawClone("colz");
+    
 }

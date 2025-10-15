@@ -51,7 +51,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     else if(light == "4He")
         srimName = "4He";
     int pressure {800}; // 20Me beam
-    if(beam == "20Ne")
+    if(beam == "20Ne" || beam == "20Na")
         pressure = 950;
     srim->ReadTable(light,
                     TString::Format("../Calibrations/SRIM/%s_%dmbar_95-5.txt", srimName.c_str(), pressure).Data());
@@ -403,11 +403,11 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECMCutSil->SetTitle("E_{CM} with silicons and cut on elastic");
     hECMCutSil->SetLineColor(1);
     hECMCutSil->DrawClone();
-    hECMCutFront->SetLineColor(colors[2]);
-    hECMCutFront->DrawClone("same");
-    hECMCutSide->SetLineColor(colors[1]);
-    hECMCutSide->DrawClone("same");
-    // hECMRPx->DrawClone("colz");
+    //hECMCutFront->SetLineColor(colors[2]);
+    //hECMCutFront->DrawClone("same");
+    //hECMCutSide->SetLineColor(colors[1]);
+    //hECMCutSide->DrawClone("same");
+    //// hECMRPx->DrawClone("colz");
 
     // // Save to file
     // auto fout {std::make_unique<TFile>("./Outputs/gated_ecm.root", "update")};
