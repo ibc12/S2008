@@ -32,7 +32,7 @@ void plotECM_intervalsThetaCM()
     {
         hECMs.push_back(new ROOT::TThreadedObject<TH1D>(
             TString::Format("hECM%d", idx),
-            TString::Format("#theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 50 keV", theta, theta + step),
+            TString::Format("#theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 10 keV", theta, theta + step),
             HistConfig::ECM.fNbinsX, HistConfig::ECM.fXLow, HistConfig::ECM.fXUp));
         idx++;
     }
@@ -61,6 +61,7 @@ void plotECM_intervalsThetaCM()
     gStyle->SetPalette(kRainBow);
 
     auto* stack {new THStack};
+    stack->SetTitle("Stacked E_{CM};E_{CM} [MeV];Counts / 50 keV");
     // Plot them in canvas
     auto* c0 {new TCanvas("c0", "Ecm intervals canvas")};
     c0->DivideSquare(hECMs.size());
@@ -69,8 +70,8 @@ void plotECM_intervalsThetaCM()
     {
         c0->cd(p);
         auto merged {h->Merge()};
-        merged->Rebin(2);
-        merged->GetXaxis()->SetRangeUser(0.6, 4.1);
+        merged->Rebin(5);
+        // merged->GetXaxis()->SetRangeUser(0.6, 4.1);
         merged->DrawClone();
         auto* clone {(TH1D*)merged->Clone()};
         clone->SetLineWidth(2);

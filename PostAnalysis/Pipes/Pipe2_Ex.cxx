@@ -91,7 +91,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     std::map<int, double> EBeams;
     for(int run = 31; run <= 40; run++)
         EBeams[run] = EBeamFirst;
-    for(int run = 47; run <= 90; run++)
+    for(int run = 47; run <= 120; run++)
         EBeams[run] = EBeamSecond;
     // Allegedly wrong LISE calculation below
     // double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa
@@ -189,6 +189,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     // Create vector of nodes and labels
     std::vector<std::string> labels {"All", "Lat", "Front", "L1"};
     std::vector<ROOT::RDF::RNode> nodes {def, nodeLat, nodeFront, nodel1};
+    std::vector<ROOT::RDF::RNode> gatedNodes {nodeEpRSil, nodeEpSide, nodeEpFront, nodel1};
 
     // EBeam
     std::vector<ROOT::RDF::RResultPtr<TH1D>> hsEBeam;
@@ -232,6 +233,20 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
         auto h {nodes[i].Histo1D(HistConfig::RPx, "fRP.fCoordinates.fX")};
         hsRPx.push_back(h);
     }
+    // Rec_ECM
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsRecECM;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {nodes[i].Histo1D(HistConfig::ECM, "Rec_ECM")};
+        hsRecECM.push_back(h);
+    }
+    // And now for gated on Ep vs R
+    std::vector<ROOT::RDF::RResultPtr<TH1D>> hsGatedRecECM;
+    for(int i = 0; i < labels.size(); i++)
+    {
+        auto h {gatedNodes[i].Histo1D(HistConfig::ECM, "Rec_ECM")};
+        hsGatedRecECM.push_back(h);
+    }
     auto hThetaBeam {def.Histo2D(HistConfig::ThetaBeam, "fRP.fCoordinates.fX", "fThetaBeam")};
     auto hRP {def.Histo2D(HistConfig::RP, "fRP.fCoordinates.fX", "fRP.fCoordinates.fY")};
     auto hThetaCMLab {def.Histo2D(HistConfig::ThetaCMLab, "fThetaLight", "ThetaCM")};
@@ -267,7 +282,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // Save only the Ep_Range selection with silicons
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
-    nodeEpRSil.Snapshot("Final_Tree", outfile);
+    def.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
 
     // std::ofstream streamer {"./debug_ep_range.dat"};
@@ -310,6 +325,13 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
         hsRPx[i]->SetTitle(title);
         hsRPx[i]->SetLineColor(col);
+
+        hsRecECM[i]->SetTitle(title);
+        hsRecECM[i]->SetLineColor(col);
+
+        hsGatedRecECM[i]->SetTitle(title);
+        hsGatedRecECM[i]->SetLineColor(col);
+
         if(i == 0)
         {
             hsEBeam[i]->SetTitle("E_{beam}");
@@ -318,6 +340,8 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
             hsECM[i]->SetTitle("E_{CM}");
             hsECM2d[i]->SetTitle("E_{CM} vs #theta_{CM}");
             hsRPx[i]->SetTitle("RP_{x}");
+            hsRecECM[i]->SetTitle("E_{CM} from proton");
+            hsGatedRecECM[i]->SetTitle("E_{CM} from proton + EpR cut");
         }
     }
 
@@ -399,7 +423,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     cuts.DrawCut("ep_range");
     // cuts.DrawCut("debug_ep_range");
     c24->cd(6);
-    hECMCutSil->SetTitle("E_{CM} with silicons and cut on elastic");
+    hECMCutSil->SetTitle("E_{CM} from RP.X + EpR cut");
     hECMCutSil->SetLineColor(1);
     hECMCutSil->DrawClone();
     hECMCutFront->SetLineColor(colors[2]);
@@ -407,6 +431,21 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     hECMCutSide->SetLineColor(colors[1]);
     hECMCutSide->DrawClone("same");
     //// hECMRPx->DrawClone("colz");
+
+    auto* c25 {new TCanvas {"c25", "Pipe2 canvas 5"}};
+    c25->DivideSquare(4);
+    c25->cd(1);
+    for(int i = 0; i < hsRPx.size(); i++)
+        hsRecECM[i]->DrawClone(i == 0 ? "" : "same");
+    gPad->BuildLegend();
+    c25->cd(2);
+    for(int i = 0; i < hsRPx.size() - 1; i++)
+        hsGatedRecECM[i]->DrawClone(i == 0 ? "" : "same");
+    gPad->BuildLegend();
+    c25->cd(3);
+    hsRecECM.back()->SetTitle("L1 E_{CM} from protons");
+    hsRecECM.back()->DrawClone();
+
 
     // // Save to file
     // auto fout {std::make_unique<TFile>("./Outputs/gated_ecm.root", "update")};

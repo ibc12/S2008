@@ -62,7 +62,7 @@ const TH2DModel RPxThetaCM {
 
 const TH2DModel RPxECM {"hRPxECM", "ECM vs RP.X;RP.X [mm];E_{CM} [MeV]", 200, 0, 300, 150, 0, 15};
 
-const TH1DModel ECM {"hECM", "E_{CM};E_{CM} [MeV];Counts / 25 keV", 200, 0, 5};
+const TH1DModel ECM {"hECM", "E_{CM};E_{CM} [MeV];Counts / 10 keV", 500, 0, 5};
 
 const TH2DModel ThetaCMECM {
     "hThetaCMECM", "#theta_{CM} vs E_{CM};#theta_{CM} [#circ];E_{CM} [MeV]", 400, 0, 180, 100, 0, 5};

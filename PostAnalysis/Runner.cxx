@@ -45,10 +45,9 @@ void Runner(TString what = "")
         gROOT->LoadMacro(path + func + ext);
         gROOT->ProcessLine(func + args);
     }
-    // Test different heavy cuts
     if(what.Contains("3"))
     {
-        func = "Pipe3_HeavyCuts";
+        func = "Pipe3_RPCuts";
         gROOT->LoadMacro(path + func + ext);
         gROOT->ProcessLine(func + args);
     }
