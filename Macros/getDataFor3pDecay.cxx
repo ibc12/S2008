@@ -28,7 +28,7 @@ struct threeAngles
     float theta3;
 };
 
-void lookFor3pDecay()
+void getDataFor3pDecay()
 {
     std::string dataconf {"./../configs/data.conf"};
 
@@ -76,7 +76,7 @@ void lookFor3pDecay()
     // Beam energy calculation and ECM
     auto def {df_filtered
                   .Define("EBeam", [&](const ActRoot::TPCData& d)
-                          { return srim->Slow("20Mg", EBeam * pb.GetAMU(), d.fRPs[0].X()); }, {"TPCData"})
+                          { return srim->Slow("20Mg", EBeam * pb.GetAMU(), d.fRPs[0].X() * 2); }, {"TPCData"})
                   .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
                   .Define("RPx", [&](ActRoot::TPCData& d) { return d.fRPs[0].X(); }, {"TPCData"})};
     // Create node to gate on different conditions: silicon layer, l1, etc

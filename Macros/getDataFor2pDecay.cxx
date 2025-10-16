@@ -27,7 +27,7 @@ struct twoAngles
     float theta2;
 };
 
-void lookFor3pDecay()
+void getDataFor2pDecay()
 {
     std::string dataconf {"./../configs/data.conf"};
 
@@ -40,10 +40,10 @@ void lookFor3pDecay()
     chain->AddFriend(chain3.get());
 
     // RDataFrame
-    ROOT::EnableImplicitMT();
+    // ROOT::EnableImplicitMT();
     ROOT::RDataFrame df {*chain};
 
-    auto df_filtered {df.Filter([](ActRoot::TPCData& d) { return d.fClusters.size() == 5; }, {"TPCData"})};
+    auto df_filtered {df.Filter([](ActRoot::TPCData& d) { return d.fClusters.size() == 4; }, {"TPCData"})};
 
     std::ofstream streamer {"./Outputs/debug_2p_decay.dat"};
     df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
@@ -51,10 +51,10 @@ void lookFor3pDecay()
 
     // srim files
     auto* srim {new ActPhysics::SRIM};
-    srim->ReadTable("20Mg", "../Calibrations/SRIM/20Mg_800mbar_95-5.txt");
+    srim->ReadTable("20Na", "../Calibrations/SRIM/20Na_950mbar_95-5.txt");
 
     // Init particles
-    ActPhysics::Particle pb {"20Mg"};
+    ActPhysics::Particle pb {"20Na"};
     auto mbeam {pb.GetMass()};
     ActPhysics::Particle pt {"p"};
     auto mtarget {pt.GetMass()};
@@ -75,9 +75,9 @@ void lookFor3pDecay()
     // Beam energy calculation and ECM
     auto def {df_filtered
                   .Define("EBeam", [&](const ActRoot::TPCData& d)
-                          { return srim->Slow("20Mg", EBeam * pb.GetAMU(), d.fRPs[0].X()); }, {"TPCData"})
+                          { return srim->Slow("20Na", EBeam * pb.GetAMU(), d.fRPs[0].X() * 2); }, {"TPCData"})
                   .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
-                  .Define("RPx", [&](ActRoot::TPCData& d) { return d.fRPs[0].X(); }, {"TPCData"})};
+                  .Define("RPx", [&](ActRoot::TPCData& d) { return d.fRPs[0].X() * 2; }, {"TPCData"})};
     // Create node to gate on different conditions: silicon layer, l1, etc
     //// L0 trigger
     // auto nodel0 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == false; }, {"MergerData"})};
@@ -163,7 +163,7 @@ void lookFor3pDecay()
         },
         {"TPCData"})};
 
-    std::string outfile {"./Outputs/tree_ex_20Mg_p_3p.root"};
+    std::string outfile {"./Outputs/tree_ex_20Na_p_2p.root"};
     // Save the tree with angles and epsilon
     df_angles.Snapshot("Final_Tree", outfile);
 
