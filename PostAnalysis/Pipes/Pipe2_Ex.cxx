@@ -181,6 +181,19 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     auto nodeEpSide {nodeLat.Filter([&](float range, double elab) { return cuts.IsInside("ep_range", range, elab); },
                                     {"RangeHeavy", "EVertex"})};
 
+    // Combine nodes
+    auto nodeL1GatedSil {def.Filter(
+        [&](ActRoot::MergerData& mer, float range, double elab)
+        {
+            if(mer.fLight.IsL1())
+                return true;
+            else
+            {
+                return cuts.IsInside("ep_range", range, elab);
+            }
+        },
+        {"MergerData", "RangeHeavy", "EVertex"})};
+
 
     // Kinematics and Ex
     auto hKin {def.Histo2D(HistConfig::KinEl, "fThetaLight", "EVertex")};
@@ -282,7 +295,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
 
     // Save only the Ep_Range selection with silicons
     auto outfile {TString::Format("./Outputs/tree_ex_%s_%s_%s.root", beam.c_str(), target.c_str(), light.c_str())};
-    def.Snapshot("Final_Tree", outfile);
+    nodeL1GatedSil.Snapshot("Final_Tree", outfile);
     std::cout << "Saving Final_Tree in " << outfile << '\n';
 
     // std::ofstream streamer {"./debug_ep_range.dat"};
