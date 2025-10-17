@@ -7,6 +7,9 @@
 #include "TColor.h"
 #include "TExec.h"
 #include "THStack.h"
+#include "TLegend.h"
+#include "TLine.h"
+#include "TPaveText.h"
 #include "TStyle.h"
 #include "TVirtualPad.h"
 #include <TH1D.h>
@@ -36,11 +39,11 @@ void plotECM_intervalsThetaCM()
     {
         hsSil.push_back(new ROOT::TThreadedObject<TH1D>(
             TString::Format("hECM%d", idx),
-            TString::Format("Silicon #theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 10 keV", theta, theta + step),
+            TString::Format("#theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 10 keV", theta, theta + step),
             HistConfig::ECM.fNbinsX, HistConfig::ECM.fXLow, HistConfig::ECM.fXUp));
         hsL1.push_back(new ROOT::TThreadedObject<TH1D>(
             TString::Format("hECM%d", idx),
-            TString::Format("L1 #theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 10 keV", theta, theta + step),
+            TString::Format("#theta_{CM} [%.2f, %.2f);E_{CM} [MeV];Counts / 10 keV", theta, theta + step),
             HistConfig::ECM.fNbinsX, HistConfig::ECM.fXLow, HistConfig::ECM.fXUp));
         idx++;
     }
@@ -89,7 +92,11 @@ void plotECM_intervalsThetaCM()
 
     // Silicon stack
     auto* stack {new THStack};
-    stack->SetTitle("Stacked E_{CM};E_{CM} [MeV];Counts / 50 keV");
+    stack->SetTitle("Silicon E_{CM};E_{CM} [MeV];Counts / 20 keV");
+    // L1 stack
+    auto* lstack {new THStack};
+    lstack->SetTitle("L1 E_{CM};E_{CM} [MeV];Counts / 10 keV");
+
 
     // Plot them in canvas
     auto* c0 {new TCanvas("c0", "Silicon ECM")};
@@ -103,6 +110,7 @@ void plotECM_intervalsThetaCM()
         merged->DrawClone();
         auto* clone {(TH1D*)merged->Clone()};
         clone->SetLineWidth(2);
+        clone->Rebin(2);
         stack->Add(clone);
         p++;
     }
@@ -116,14 +124,59 @@ void plotECM_intervalsThetaCM()
         c1->cd(p);
         auto merged {h->Merge()};
         merged->DrawClone();
+        auto* clone {(TH1D*)merged->Clone()};
+        clone->SetLineWidth(2);
+        // clone->Rebin(2);
+        lstack->Add(clone);
         p++;
     }
 
     auto* c2 {new TCanvas {"c2", "Ecm 2d canvas"}};
-    c2->DivideSquare(2);
+    c2->Divide(1, 2);
     c2->cd(1);
-    hECM2d->DrawClone("colz");
-    c2->cd(2);
     stack->Draw("plc pmc");
-    gPad->BuildLegend();
+    auto* leg = gPad->BuildLegend(0.8, 0.1, 0.95, 0.85);
+    c2->cd(2);
+    lstack->Draw("plc pmc");
+    leg = gPad->BuildLegend(0.8, 0.1, 0.95, 0.85);
+
+    // Create lines and texts
+    std::vector<double> resonances {0.717, 0.85, 0.98, 1.28, 1.885};
+    std::vector<std::string> comments {"?", "New?", "", "", "New!"};
+    auto pad {c2->cd(1)};
+    pad->Update();
+    for(const auto& res : resonances)
+    {
+        auto* line {new TLine {res, pad->GetUymin(), res, pad->GetUymax()}};
+        line->SetLineStyle(2);
+        line->SetLineWidth(2);
+        line->Draw();
+    }
+    pad = c2->cd(2);
+    pad->Update();
+    for(const auto& res : resonances)
+    {
+        auto* line {new TLine {res, pad->GetUymin(), res, pad->GetUymax()}};
+        line->SetLineStyle(2);
+        line->SetLineWidth(2);
+        line->Draw();
+    }
+
+    // And now text
+    pad = c2->cd(1);
+    idx = 0;
+    for(const auto& res : resonances)
+    {
+        auto* text {new TPaveText {res + 0.05, 1780, res + 0.25, 2120, "NB"}};
+        text->SetFillStyle(0);
+        text->SetBorderSize(0);
+        text->AddText(TString::Format("%.2f MeV", res));
+        if(comments[idx].size())
+            text->AddText(comments[idx].c_str());
+        // Style
+        text->SetTextFont(22);
+        text->SetTextSize(0.04);
+        text->Draw();
+        idx++;
+    }
 }
