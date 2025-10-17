@@ -43,7 +43,17 @@ void getDataFor2pDecay()
     // ROOT::EnableImplicitMT();
     ROOT::RDataFrame df {*chain};
 
-    auto df_filtered {df.Filter([](ActRoot::TPCData& d) { return d.fClusters.size() == 4; }, {"TPCData"})};
+    auto df_filtered {df.Filter(
+        [](ActRoot::TPCData& d)
+        {
+            // Gate n all being beams
+            auto nBeams {std::count_if(d.fClusters.begin(), d.fClusters.end(),
+                                      [](ActRoot::Cluster& cl) { return cl.GetIsBeamLike(); })};
+            if(nBeams > 1)
+                return false;
+            return d.fClusters.size() == 4;
+        },
+        {"TPCData"})};
 
     std::ofstream streamer {"./Outputs/debug_2p_decay.dat"};
     df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
@@ -70,7 +80,7 @@ void getDataFor2pDecay()
     for(auto& k : vkins)
         k = kin;
 
-    // Output 
+    // Output
 
     // Beam energy calculation and ECM
     auto def {df_filtered
@@ -166,5 +176,4 @@ void getDataFor2pDecay()
     std::string outfile {"./Outputs/tree_ex_20Na_p_2p.root"};
     // Save the tree with angles and epsilon
     df_angles.Snapshot("Final_Tree", outfile);
-
 }
