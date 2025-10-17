@@ -1,3 +1,4 @@
+#include "ActCluster.h"
 #include "ActCutsManager.h"
 #include "ActDataManager.h"
 #include "ActKinematics.h"
@@ -14,6 +15,7 @@
 #include "TH2.h"
 #include "TString.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -40,14 +42,27 @@ void getDataFor2pDecay()
     chain->AddFriend(chain3.get());
 
     // RDataFrame
-    // ROOT::EnableImplicitMT();
+    ROOT::EnableImplicitMT();
     ROOT::RDataFrame df {*chain};
 
-    auto df_filtered {df.Filter([](ActRoot::TPCData& d) { return d.fClusters.size() == 4; }, {"TPCData"})};
+    auto df_filtered {df.Filter(
+        [](ActRoot::TPCData& d)
+        {
+            auto nBeams {std::count_if(d.fClusters.begin(), d.fClusters.end(),
+                                       [](ActRoot::Cluster& cl) { return cl.GetIsBeamLike(); })};
+            if(nBeams > 1)
+                return false;
+            // Mask decay that start at ~ 200 mm
+            if(d.fRPs.size())
+                if(d.fRPs[0].X() * 2 > 200)
+                    return false;
+            return d.fClusters.size() == 4;
+        },
+        {"TPCData"})};
 
-    std::ofstream streamer {"./Outputs/debug_2p_decay.dat"};
-    df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
-    streamer.close();
+    // std::ofstream streamer {"./Outputs/debug_2p_decay.dat"};
+    // df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
+    // streamer.close();
 
     // srim files
     auto* srim {new ActPhysics::SRIM};
@@ -70,7 +85,7 @@ void getDataFor2pDecay()
     for(auto& k : vkins)
         k = kin;
 
-    // Output 
+    // Output
 
     // Beam energy calculation and ECM
     auto def {df_filtered
@@ -78,30 +93,6 @@ void getDataFor2pDecay()
                           { return srim->Slow("20Na", EBeam * pb.GetAMU(), d.fRPs[0].X() * 2); }, {"TPCData"})
                   .Define("ECM", [&](double EBeam) { return (mtarget / (mbeam + mtarget)) * EBeam; }, {"EBeam"})
                   .Define("RPx", [&](ActRoot::TPCData& d) { return d.fRPs[0].X() * 2; }, {"TPCData"})};
-    // Create node to gate on different conditions: silicon layer, l1, etc
-    //// L0 trigger
-    // auto nodel0 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == false; }, {"MergerData"})};
-    //// L0 -> side silicons
-    // auto nodeLat {nodel0.Filter([](ActRoot::MergerData& d)
-    //                             { return d.fLight.fLayers.front() == "l0" || d.fLight.fLayers.front() == "r0"; },
-    //                             {"MergerData"})};
-    //// L0 -> front silicons
-    // auto nodeFront {
-    //     nodel0.Filter([](ActRoot::MergerData& d) { return d.fLight.fLayers.front() == "f0"; }, {"MergerData"})};
-    //
-    //// L1 trigger
-    // auto nodel1 {def.Filter([](ActRoot::MergerData& d) { return d.fLight.IsL1() == true; }, {"MergerData"})};
-
-    // // Plot Ecm
-    // std::vector<std::string> labels {"All", "Lat", "Front", "L1"};
-    // std::vector<ROOT::RDF::RNode> nodes {def, nodeLat, nodeFront, nodel1};
-    // // ECM histos
-    // std::vector<ROOT::RDF::RResultPtr<TH1D>> hsECM;
-    // for(int i = 0; i < labels.size(); i++)
-    // {
-    //     auto h {nodes[i].Histo1D(HistConfig::ECM, "ECM")};
-    //     hsECM.push_back(h);
-    // }
 
     // Get Angles of light and heavy
     auto df_angles {def.Define(
@@ -165,6 +156,5 @@ void getDataFor2pDecay()
 
     std::string outfile {"./Outputs/tree_ex_20Na_p_2p.root"};
     // Save the tree with angles and epsilon
-    df_angles.Snapshot("Final_Tree", outfile);
-
+    df_angles.Snapshot("Final_Tree", outfile, {"MergerData", "EBeam", "ECM", "RPx", "threeAngles"});
 }

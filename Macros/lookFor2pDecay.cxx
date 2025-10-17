@@ -32,42 +32,25 @@ void lookFor2pDecay()
     std::string dataconf {"./../configs/data.conf"};
 
     // RDataFrame
-    ROOT::EnableImplicitMT();
+    // ROOT::EnableImplicitMT();
+    std::string infile {"./Outputs/tree_ex_20Na_p_2p.root"};
+    ROOT::RDataFrame df_angles {"Final_Tree", infile};
 
-    // std::ofstream streamer {"./Outputs/debug_3p_decay.dat"};
-    // df_filtered.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
-    // streamer.close();
+    // Book histograms
+    auto hECM {df_angles.Histo1D(HistConfig::ECM, "ECM")};
+    auto hRpx {df_angles.Histo1D(HistConfig::RPx, "RPx")};
 
-    // srim files
-    auto* srim {new ActPhysics::SRIM};
-    srim->ReadTable("20Na", "../Calibrations/SRIM/20Na_950mbar_95-5.txt");
 
-    // Init particles
-    ActPhysics::Particle pb {"20Na"};
-    auto mbeam {pb.GetMass()};
-    ActPhysics::Particle pt {"p"};
-    auto mtarget {pt.GetMass()};
-    ActPhysics::Particle pl {"p"};
-
-    double EBeam {4.24}; // MeV/u from SRIM interpolation of exp. 20Mg range
-    // All the above beam energies include energy losses in CFA, window, etc...
-    // They're given at X = 0 of the pad plane
-    ActPhysics::Kinematics kin {pb, pt, pl, EBeam * pb.GetAMU()};
-    // Vector of kinematics as one object is needed per
-    // processing slot (since we are changing EBeam in each entry)
-    
-    // Get data from file
-    std::string outfile {"./Outputs/tree_ex_20Na_p_2p.root"};
-    ROOT::RDataFrame df_angles {"Final_Tree", outfile};
+    std::ofstream streamer {"./Outputs/debug_2p_decay.dat"};
+    df_angles.Foreach([&](ActRoot::MergerData& d) { d.Stream(streamer); }, {"MergerData"});
+    streamer.close();
 
     // Draw them
     auto* c1 {new TCanvas("c1", "2p decay ECM")};
     c1->DivideSquare(2);
     c1->cd(1);
-    auto hECM {df_angles.Histo1D(HistConfig::ECM, "ECM")};
     hECM->DrawClone();
     c1->cd(2);
-    auto hRpx {df_angles.Histo1D(HistConfig::RPx, "RPx")};
     hRpx->DrawClone();
     // Plot angles
     // auto* c2 {new TCanvas("c2", "2p decay angles")};
@@ -99,5 +82,4 @@ void lookFor2pDecay()
     // hDalitz3->GetXaxis()->SetTitle("#epsilon_{3}");
     // hDalitz3->GetYaxis()->SetTitle("#epsilon_{1}");
     // hDalitz3->DrawClone("colz");
-    
 }
