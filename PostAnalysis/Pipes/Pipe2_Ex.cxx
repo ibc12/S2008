@@ -91,7 +91,7 @@ void Pipe2_Ex(const std::string& beam, const std::string& target, const std::str
     std::map<int, double> EBeams;
     for(int run = 31; run <= 40; run++)
         EBeams[run] = EBeamFirst;
-    for(int run = 47; run <= 120; run++)
+    for(int run = 47; run <= 140; run++)
         EBeams[run] = EBeamSecond;
     // Allegedly wrong LISE calculation below
     // double EBeamIni {4.05235}; // AMeV at X = 0 of pad plane; energy meassure 5.44 before cfa

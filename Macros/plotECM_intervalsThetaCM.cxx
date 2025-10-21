@@ -167,12 +167,12 @@ void plotECM_intervalsThetaCM()
     idx = 0;
     for(const auto& res : resonances)
     {
-        auto* text {new TPaveText {res + 0.05, 1780, res + 0.25, 2120, "NB"}};
+        auto* text {new TPaveText {res + 0.05, 2500, res + 0.25, 2900, "NB"}};
         text->SetFillStyle(0);
         text->SetBorderSize(0);
         text->AddText(TString::Format("%.2f MeV", res));
-        if(comments[idx].size())
-            text->AddText(comments[idx].c_str());
+        // if(comments[idx].size())
+        //     text->AddText(comments[idx].c_str());
         // Style
         text->SetTextFont(22);
         text->SetTextSize(0.04);
